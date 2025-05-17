@@ -1,6 +1,6 @@
 use std::env;
 
-use multiglob::builder::MultiGlobBuilder;
+use multiglob::MultiGlobBuilder;
 
 fn main() {
     let mut args = env::args().skip(1);

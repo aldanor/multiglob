@@ -1,7 +1,8 @@
-pub mod builder;
-pub mod cluster;
-pub mod util;
-pub mod walk;
+mod builder;
+mod cluster;
+mod util;
+mod walk;
 
-pub use ignore::Error as GlobError;
-pub use walkdir::{DirEntry, Error as WalkError};
+pub use globset::Error as GlobError;
+
+pub use crate::builder::MultiGlobBuilder;

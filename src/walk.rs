@@ -8,7 +8,7 @@ use std::{
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use walkdir::WalkDir;
 
-use crate::util::is_glob_like;
+use crate::{util::is_glob_like, GlobError};
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 enum WalkNodeType {
@@ -119,7 +119,7 @@ struct WalkPlanNodeCompiled {
 }
 
 impl WalkPlanNodeCompiled {
-    fn new(node: &WalkPlanNode, skip_invalid: bool) -> Result<Self, globset::Error> {
+    fn new(node: &WalkPlanNode, skip_invalid: bool) -> Result<Self, GlobError> {
         let mut destinations = Vec::new();
         let matcher = if node.node_type == WalkNodeType::Path {
             destinations.extend(node.patterns.values().cloned());
@@ -279,7 +279,7 @@ impl MultiGlobWalker {
         patterns: Vec<String>,
         walkdir_fn: WalkDirFn,
         skip_invalid: bool,
-    ) -> Result<(), globset::Error> {
+    ) -> Result<(), GlobError> {
         let plan = WalkPlanNode::build(&patterns);
         let node = WalkPlanNodeCompiled::new(&plan, skip_invalid)?;
         let walker = NodeWalker::new(node, base, walkdir_fn.clone());

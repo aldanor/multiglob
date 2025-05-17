@@ -1,12 +1,9 @@
 use std::{
-    any::type_name_of_val,
-    cmp::Ordering,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
-use ignore::overrides::OverrideBuilder;
-use walkdir::{DirEntry, WalkDir};
+use walkdir::WalkDir;
 
 use crate::{cluster::cluster_globs, walk::MultiGlobWalker, GlobError};
 
@@ -65,7 +62,7 @@ impl MultiGlobBuilder {
         }
     }
 
-    fn impl_build(&self, skip_invalid: bool) -> Result<MultiGlobWalker, globset::Error> {
+    fn impl_build(&self, skip_invalid: bool) -> Result<MultiGlobWalker, GlobError> {
         let mut walker = MultiGlobWalker::default();
         let opts = self.opts.clone();
         let walkdir_fn = Arc::new(move |walkdir| opts.configure_walkdir(walkdir));
@@ -77,7 +74,7 @@ impl MultiGlobBuilder {
         Ok(walker.rev())
     }
 
-    pub fn build(&self) -> Result<MultiGlobWalker, globset::Error> {
+    pub fn build(&self) -> Result<MultiGlobWalker, GlobError> {
         self.impl_build(false)
     }
 
