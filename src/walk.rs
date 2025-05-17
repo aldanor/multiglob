@@ -268,12 +268,11 @@ impl Iterator for NodeWalker {
 
 #[derive(Default)]
 pub struct MultiGlobWalker {
-    walker: Option<NodeWalker>,
     stack: Vec<NodeWalker>,
 }
 
 impl MultiGlobWalker {
-    pub fn add(
+    pub(crate) fn add(
         &mut self,
         base: PathBuf,
         patterns: Vec<String>,
@@ -287,7 +286,7 @@ impl MultiGlobWalker {
         Ok(())
     }
 
-    pub fn rev(self) -> Self {
+    pub(crate) fn rev(self) -> Self {
         Self { stack: self.stack.into_iter().rev().collect(), ..self }
     }
 }
@@ -296,15 +295,9 @@ impl Iterator for MultiGlobWalker {
     type Item = io::Result<PathBuf>; // TODO: wrap DirEntry
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if self.walker.is_none() {
-                self.walker = self.stack.pop();
-                if self.walker.is_none() {
-                    return None;
-                }
-            }
-            match self.walker.as_mut().unwrap().next() {
-                None => self.walker = None,
+        while !self.stack.is_empty() {
+            match self.stack.last_mut().unwrap().next() {
+                None => _ = self.stack.pop(),
                 Some(Err(err)) => return Some(Err(err.into())),
                 Some(Ok(mut res)) => {
                     self.stack.extend(res.nodes.drain(..));
@@ -314,5 +307,6 @@ impl Iterator for MultiGlobWalker {
                 }
             };
         }
+        None
     }
 }
