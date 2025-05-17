@@ -1,0 +1,24 @@
+[package]
+name = "multiglob"
+version = "0.1.0"
+edition = "2021"
+authors = ["Ivan Smirnov <aldanor@users.noreply.github.com>"]
+license = "MIT or Apache-2.0"
+repository = "https://github.com/aldanor/multiglob"
+homepage = "https://github.com/aldanor/multiglob"
+documentation = "https://docs.rs/multiglob"
+categories = ["filesystem"]
+keywords = ["glob", "walk", "pattern", "directory", "recursive"]
+readme = "README.md"
+resolver = "2"
+
+[dependencies]
+globset = "0.4"
+ignore = "0.4"
+walkdir = "2"
+
+[target.'cfg(windows)'.dependencies.winapi-util]
+version = "0.1"
+
+[dev-dependencies]
+tempfile = "3"
