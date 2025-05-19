@@ -1,3 +1,6 @@
+use std::env;
+use std::path::Path;
+
 use rstest::rstest;
 use walkdir::WalkDir;
 
@@ -59,7 +62,22 @@ fn test_double_star_at_root(
         MultiGlobBuilder::new(&base, ["**"]).follow_links(follow_links).build().unwrap(),
         WalkDir::new(&base).follow_links(follow_links),
     );
+    Ok(())
+}
 
+#[rstest]
+fn test_double_star_at_root_rel(
+    #[values("../y", "../y/asym")] base: &str,
+    #[values(false, true)] follow_links: bool,
+) -> Result<()> {
+    let dir = setup_dir_with_syms();
+    let cwd = env::current_dir().unwrap();
+    env::set_current_dir(dir.path().join("base/x/y")).unwrap();
+    assert_mg_eq_wd(
+        MultiGlobBuilder::new(&base, ["**"]).follow_links(follow_links).build().unwrap(),
+        WalkDir::new(&base).follow_links(follow_links),
+    );
+    env::set_current_dir(cwd).unwrap();
     Ok(())
 }
 
@@ -77,6 +95,25 @@ fn test_double_star_at_path(
             .unwrap(),
         WalkDir::new(&base.join(path)).follow_links(follow_links).follow_root_links(false),
     );
+    Ok(())
+}
 
+#[rstest]
+fn test_double_star_at_path_rel(
+    #[values("../y", "../y/asym")] path: &str,
+    #[values(false, true)] follow_links: bool,
+) -> Result<()> {
+    let dir = setup_dir_with_syms();
+    let cwd = env::current_dir().unwrap();
+    env::set_current_dir(dir.path().join("base/x")).unwrap();
+    let base = Path::new("y");
+    assert_mg_eq_wd(
+        MultiGlobBuilder::new(base, [format!("{path}/**")])
+            .follow_links(follow_links)
+            .build()
+            .unwrap(),
+        WalkDir::new(base.join(path)).follow_links(follow_links).follow_root_links(false),
+    );
+    env::set_current_dir(cwd).unwrap();
     Ok(())
 }
