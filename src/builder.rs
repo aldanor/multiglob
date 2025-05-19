@@ -8,6 +8,7 @@ use crate::{cluster::cluster_globs, walk::MultiGlobWalker, GlobError};
 #[derive(Clone)]
 pub(crate) struct MultiGlobOptions {
     pub follow_links: bool,
+    pub max_depth: usize,
     pub max_open: usize,
     pub same_file_system: bool,
     pub case_insensitive: bool,
@@ -17,6 +18,7 @@ impl Default for MultiGlobOptions {
     fn default() -> Self {
         Self {
             follow_links: false,
+            max_depth: usize::MAX,
             max_open: 10,
             same_file_system: false,
             case_insensitive: false,
@@ -90,6 +92,28 @@ impl MultiGlobBuilder {
     /// This is disabled by default.
     pub fn case_insensitive(mut self, yes: bool) -> Self {
         self.opts.case_insensitive = yes;
+        self
+    }
+
+    /// Set the maximum depth of all recursive globs (those containing `**`).
+    ///
+    /// The smallest depth is `0` and always corresponds to the path given
+    /// to the `new` function on this type. Its direct descendents have depth
+    /// `1`, and their descendents have depth `2`, and so on.
+    ///
+    /// This will not simply filter the entries of the iterator, but
+    /// it will actually avoid descending into directories when the depth is
+    /// exceeded.
+    ///
+    /// Note that the depth is counted not from the base directory, but from a point
+    /// where a recursive pattern is encountered. For example, if maximum depth is 2
+    /// and patterns are `../a/**` and `b/**`, then the deepest entries will look
+    // like `../a/x/y` and `b/x/y`.
+    pub fn max_depth(mut self, depth: usize) -> Self {
+        self.opts.max_depth = depth;
+        if self.opts.max_depth < self.opts.max_depth {
+            self.opts.max_depth = self.opts.max_depth;
+        }
         self
     }
 

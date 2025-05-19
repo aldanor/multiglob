@@ -203,8 +203,7 @@ impl NodeWalker {
                 NodeWalkerState::Path { paths, index: 0 }
             }
             WalkNodeMatcher::Walk { globset, recursive } => {
-                let max_depth = if recursive { usize::MAX } else { 1 };
-                // TODO: add depth support from root, track current depth
+                let max_depth = if recursive { opts.max_depth } else { 1 };
                 debug!("creating new walker at {}, recursive={recursive}", base.display());
                 let walker = walkdir_fn(WalkDir::new(&base))
                     .max_depth(max_depth)
@@ -240,7 +239,7 @@ impl Iterator for NodeWalker {
                     let i = *index;
                     *index += 1;
                     let path = &paths[i];
-                    let Ok(mut meta) = fs::symlink_metadata(path) else { continue };
+                    let Ok(mut meta) = fs::symlink_metadata(&path) else { continue };
                     let follow = meta.is_symlink() && self.opts.follow_links;
                     if follow {
                         if let Ok(m) = fs::metadata(path) {

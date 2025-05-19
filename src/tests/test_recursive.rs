@@ -117,3 +117,14 @@ fn test_double_star_at_path_rel(
     env::set_current_dir(cwd).unwrap();
     Ok(())
 }
+
+#[rstest]
+fn test_double_star_with_max_depth() -> Result<()> {
+    let dir = setup_dir_with_syms();
+    let base = dir.path().join("base");
+    assert_mg_eq_wd(
+        MultiGlobBuilder::new(&base, ["x/**"]).follow_links(true).max_depth(2).build().unwrap(),
+        WalkDir::new(&base.join("x")).follow_links(true).max_depth(2).follow_root_links(false),
+    );
+    Ok(())
+}
