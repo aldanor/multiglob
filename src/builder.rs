@@ -1,14 +1,12 @@
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::path::{Path, PathBuf};
 
+use log::debug;
 use walkdir::WalkDir;
 
 use crate::{cluster::cluster_globs, walk::MultiGlobWalker, GlobError};
 
 #[derive(Clone)]
-struct MultiGlobOptions {
+pub(crate) struct MultiGlobOptions {
     pub follow_links: bool,
     pub max_open: usize,
     pub same_file_system: bool,
@@ -29,6 +27,7 @@ impl Default for MultiGlobOptions {
 impl MultiGlobOptions {
     pub fn configure_walkdir(&self, walkdir: WalkDir) -> WalkDir {
         walkdir
+            .follow_root_links(true)
             .sort_by_file_name()
             .follow_links(self.follow_links)
             .max_open(self.max_open)
@@ -63,13 +62,16 @@ impl MultiGlobBuilder {
     }
 
     fn impl_build(&self, skip_invalid: bool) -> Result<MultiGlobWalker, GlobError> {
-        let mut walker = MultiGlobWalker::default();
-        let opts = self.opts.clone();
-        let walkdir_fn = Arc::new(move |walkdir| opts.configure_walkdir(walkdir));
+        let mut walker = MultiGlobWalker::new(self.base.clone(), self.opts.clone());
         let glob_groups = cluster_globs(&self.patterns);
-        println!("glob groups: {glob_groups:?}");
         for (base, patterns) in glob_groups {
-            walker.add(self.base.join(base), patterns, walkdir_fn.clone(), skip_invalid)?;
+            let base = if base.components().next().is_none() {
+                self.base.clone()
+            } else {
+                self.base.join(base)
+            };
+            debug!(base:?, patterns:?; "adding a glob group");
+            walker.add(base, patterns, skip_invalid)?;
         }
         Ok(walker.rev())
     }

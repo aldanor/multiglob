@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     fs, io, mem,
     path::{Path, PathBuf},
     sync::Arc,
@@ -8,7 +8,16 @@ use std::{
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use walkdir::WalkDir;
 
-use crate::{util::is_glob_like, GlobError};
+use crate::{builder::MultiGlobOptions, util::is_glob_like, DirEntry, GlobError};
+
+macro_rules! itry {
+    ($e:expr) => {
+        match $e {
+            Ok(v) => v,
+            Err(err) => return Some(Err(From::from(err))),
+        }
+    };
+}
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 enum WalkNodeType {
@@ -82,26 +91,29 @@ impl WalkPlanNode {
     }
 
     pub fn optimize(&mut self) {
-        for v in self.patterns.values_mut() {
-            v.optimize();
-        }
-        if self.node_type != WalkNodeType::Path {
-            return;
-        }
-        let mut patterns = BTreeMap::new();
-        for (k, mut v) in mem::take(&mut self.patterns) {
-            if v.node_type == WalkNodeType::Path {
-                if v.is_terminal {
-                    patterns.insert(k.clone(), Self::terminal());
-                }
-                for (pk, pv) in mem::take(&mut v.patterns) {
-                    patterns.insert(Path::new(&k).join(&pk).to_str().unwrap().to_owned(), pv);
-                }
-            } else {
-                patterns.insert(k, v);
-            }
-        }
-        self.patterns = patterns;
+        // squash pure-path component trees into pure-path nodes with multi-part paths
+        // note: this code would only makes sense if we always resolved all symlinks for path components
+
+        // for v in self.patterns.values_mut() {
+        //     v.optimize();
+        // }
+        // if self.node_type != WalkNodeType::Path {
+        //     return;
+        // }
+        // let mut patterns = BTreeMap::new();
+        // for (k, mut v) in mem::take(&mut self.patterns) {
+        //     if v.node_type == WalkNodeType::Path {
+        //         if v.is_terminal {
+        //             patterns.insert(k.clone(), Self::terminal());
+        //         }
+        //         for (pk, pv) in mem::take(&mut v.patterns) {
+        //             patterns.insert(Path::new(&k).join(&pk).to_str().unwrap().to_owned(), pv);
+        //         }
+        //     } else {
+        //         patterns.insert(k, v);
+        //     }
+        // }
+        // self.patterns = patterns;
     }
 }
 
@@ -119,7 +131,8 @@ struct WalkPlanNodeCompiled {
 }
 
 impl WalkPlanNodeCompiled {
-    fn new(node: &WalkPlanNode, skip_invalid: bool) -> Result<Self, GlobError> {
+    pub fn new(node: &WalkPlanNode, skip_invalid: bool) -> Result<Self, GlobError> {
+        // TODO: when skip_invalid is enabled, it could return a list of globs that failed and errors
         let mut destinations = Vec::new();
         let matcher = if node.node_type == WalkNodeType::Path {
             destinations.extend(node.patterns.values().cloned());
@@ -159,16 +172,29 @@ enum NodeWalkerState {
 
 type WalkDirFn = Arc<dyn Fn(WalkDir) -> WalkDir + Send + Sync + 'static>;
 
+#[derive(Default)]
+struct NodeWalkerOutput {
+    terminal: Option<DirEntry>,
+    nodes: Vec<NodeWalker>,
+}
+
 struct NodeWalker {
     base: PathBuf,
     state: NodeWalkerState,
     destinations: Vec<WalkPlanNodeCompiled>,
     index_buf: Vec<usize>,
     walkdir_fn: WalkDirFn,
+    opts: MultiGlobOptions,
+    follow: bool, // there were symlinks along the way and follow_links was on
 }
 
 impl NodeWalker {
-    pub fn new(node: WalkPlanNodeCompiled, base: PathBuf, walkdir_fn: WalkDirFn) -> Self {
+    pub fn new(
+        node: WalkPlanNodeCompiled,
+        base: PathBuf,
+        walkdir_fn: WalkDirFn,
+        opts: MultiGlobOptions,
+    ) -> Self {
         let state = match node.matcher {
             WalkNodeMatcher::Path { paths } => {
                 let paths = paths.iter().map(|p| base.join(p)).collect();
@@ -176,38 +202,22 @@ impl NodeWalker {
             }
             WalkNodeMatcher::Walk { globset, recursive } => {
                 let max_depth = if recursive { usize::MAX } else { 1 };
+                // TODO: add depth support from root, track current depth
+                println!("new walker with base: {}", base.display());
                 let walker = walkdir_fn(WalkDir::new(&base)).max_depth(max_depth).into_iter();
                 NodeWalkerState::Walk { globset, walker }
             }
         };
-        Self { base, state, destinations: node.destinations, index_buf: Vec::new(), walkdir_fn }
-    }
-
-    fn build_output(
-        destinations: &[WalkPlanNodeCompiled],
-        walkdir_fn: &WalkDirFn,
-        path: &Path,
-        index: impl IntoIterator<Item = usize>,
-        is_dir: bool,
-    ) -> Option<NodeWalkerOutput> {
-        let mut out = NodeWalkerOutput::default();
-        for i in index {
-            let dst = &destinations[i];
-            if dst.is_terminal && out.terminal.is_none() {
-                out.terminal = Some(path.into());
-            }
-            if !dst.destinations.is_empty() && is_dir {
-                out.nodes.push(NodeWalker::new(dst.clone(), path.into(), walkdir_fn.clone()));
-            }
+        Self {
+            base,
+            state,
+            destinations: node.destinations,
+            index_buf: Vec::new(),
+            walkdir_fn,
+            opts,
+            follow: false,
         }
-        (out.terminal.is_some() || !out.nodes.is_empty()).then_some(out)
     }
-}
-
-#[derive(Default)]
-struct NodeWalkerOutput {
-    terminal: Option<PathBuf>, // TODO: mimic DirEntry
-    nodes: Vec<NodeWalker>,
 }
 
 impl Iterator for NodeWalker {
@@ -215,6 +225,9 @@ impl Iterator for NodeWalker {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
+            let mut entry = None;
+            self.index_buf.clear();
+
             match &mut self.state {
                 NodeWalkerState::Path { paths, index } => {
                     if *index >= paths.len() {
@@ -223,65 +236,78 @@ impl Iterator for NodeWalker {
                     let i = *index;
                     *index += 1;
                     let path = &paths[i];
-                    let Ok(meta) = fs::metadata(path) else {
-                        continue;
-                    };
-                    if let Some(out) = Self::build_output(
-                        &self.destinations,
-                        &self.walkdir_fn,
-                        path,
-                        [i],
-                        meta.is_dir(),
-                    ) {
-                        return Some(Ok(out));
-                    } else {
-                        continue;
-                    }
-                }
-                NodeWalkerState::Walk { walker, globset } => {
-                    let entry = walker.next()?;
-                    let entry = match entry {
-                        Ok(entry) => entry,
-                        Err(err) => return Some(Err(err.into())),
-                    };
-                    let is_dir = entry.file_type().is_dir(); // requires follow_links for this to be true
-                    if let Ok(path) = entry.path().strip_prefix(&self.base) {
-                        globset.matches_into(path, &mut self.index_buf);
-                        // TODO: preserve DirEntry and its metadata
-                        if let Some(out) = Self::build_output(
-                            &self.destinations,
-                            &self.walkdir_fn,
-                            path,
-                            self.index_buf.iter().copied(),
-                            is_dir,
-                        ) {
-                            return Some(Ok(out));
+                    let Ok(mut meta) = fs::symlink_metadata(&path) else { continue };
+                    let follow = meta.is_symlink() && self.opts.follow_links;
+                    if follow {
+                        if let Ok(m) = fs::metadata(&path) {
+                            meta = m;
                         } else {
                             continue;
                         }
                     }
+                    entry = Some(DirEntry::from_meta(path.to_path_buf(), meta, follow));
+                    self.index_buf.push(i);
                 }
+                NodeWalkerState::Walk { walker, globset } => {
+                    let walk_entry = itry!(walker.next()?);
+                    if let Ok(path) = walk_entry.path().strip_prefix(&self.base) {
+                        globset.matches_into(path, &mut self.index_buf);
+                        if !self.index_buf.is_empty() {
+                            entry = Some(DirEntry::from_walk(walk_entry));
+                        }
+                    }
+                }
+            }
+
+            let Some(entry) = entry else { continue };
+            let mut out = NodeWalkerOutput::default();
+            let path = entry.path().to_path_buf();
+            let is_dir = entry.file_type().is_dir(); // will account for follow_links already
+            let mut entry = Some(entry);
+            for &i in &self.index_buf {
+                let dst = &self.destinations[i];
+                if dst.is_terminal && out.terminal.is_none() {
+                    out.terminal = entry.take();
+                }
+                if !dst.destinations.is_empty() && is_dir {
+                    out.nodes.push(NodeWalker::new(
+                        dst.clone(),
+                        path.clone(),
+                        self.walkdir_fn.clone(),
+                        self.opts.clone(),
+                    ));
+                }
+            }
+            if out.terminal.is_some() || !out.nodes.is_empty() {
+                return Some(Ok(out));
             }
         }
     }
 }
 
-#[derive(Default)]
 pub struct MultiGlobWalker {
+    base: PathBuf,
+    opts: MultiGlobOptions,
     stack: Vec<NodeWalker>,
+    first: bool,
 }
 
 impl MultiGlobWalker {
+    pub(crate) fn new(base: PathBuf, opts: MultiGlobOptions) -> Self {
+        Self { base, opts, stack: Vec::new(), first: true }
+    }
+
     pub(crate) fn add(
         &mut self,
         base: PathBuf,
         patterns: Vec<String>,
-        walkdir_fn: WalkDirFn,
         skip_invalid: bool,
     ) -> Result<(), GlobError> {
         let plan = WalkPlanNode::build(&patterns);
         let node = WalkPlanNodeCompiled::new(&plan, skip_invalid)?;
-        let walker = NodeWalker::new(node, base, walkdir_fn.clone());
+        let opts = self.opts.clone();
+        let walkdir_fn = Arc::new(move |walkdir| opts.configure_walkdir(walkdir));
+        let walker = NodeWalker::new(node, base, walkdir_fn, self.opts.clone());
         self.stack.push(walker);
         Ok(())
     }
@@ -292,9 +318,28 @@ impl MultiGlobWalker {
 }
 
 impl Iterator for MultiGlobWalker {
-    type Item = io::Result<PathBuf>; // TODO: wrap DirEntry
+    type Item = io::Result<DirEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.first {
+            // on first iteration, filter out unreachable base dirs and mark their follow status
+            let stack = mem::take(&mut self.stack);
+            let follow = check_base_dirs(
+                &self.base,
+                stack.iter().map(|node| &node.base),
+                self.opts.follow_links,
+            );
+            self.stack = stack
+                .into_iter()
+                .zip(follow)
+                .filter_map(|(node, follow)| follow.map(|f| (node, f)))
+                .map(|(mut node, follow)| {
+                    node.follow = follow;
+                    node
+                })
+                .collect();
+            self.first = false;
+        }
         while !self.stack.is_empty() {
             match self.stack.last_mut().unwrap().next() {
                 None => _ = self.stack.pop(),
@@ -302,11 +347,63 @@ impl Iterator for MultiGlobWalker {
                 Some(Ok(mut res)) => {
                     self.stack.extend(res.nodes.drain(..));
                     if let Some(terminal) = res.terminal {
-                        return Some(Ok(terminal)); // TODO: DirEntry
+                        return Some(Ok(terminal));
                     }
                 }
             };
         }
         None
     }
+}
+
+fn check_base_dirs<P: AsRef<Path>>(
+    base: &Path,
+    paths: impl IntoIterator<Item = P>,
+    follow_links: bool,
+) -> Vec<Option<bool>> {
+    // For a collection of starting directories, check if it's valid directory path if
+    // follow_links is enabled, we follow symlinks (note: root link is always being followed).
+    // For each base path, return None if target directory is not a directory or if there
+    // were symlinks along the way which we couldn't follow (including the target directory
+    // itself in case it's not the root one); otherwise, return whether symlinks had to
+    // be expanded along the way (not including the base directory). We do it in one go here
+    // to avoid duplicate fs::metadata calls.
+
+    fn check_symlink_dir(path: &Path, follow_links: bool) -> Option<bool> {
+        // check if path is a directory and whether we had to follow a symlink to resolve it
+        let sym = fs::symlink_metadata(path).ok()?;
+        if sym.is_dir() {
+            Some(false)
+        } else if sym.is_symlink() && follow_links {
+            fs::metadata(path).ok()?.is_dir().then_some(true)
+        } else {
+            None
+        }
+    }
+
+    // note: if follow_links=false, could special-case this because we don't have to check ancestors
+
+    let mut out = Vec::new();
+    let mut cache = HashMap::new();
+    cache.insert(base.to_owned(), check_symlink_dir(&base, true).map(|_| false));
+    'outer: for path in paths {
+        let path = path.as_ref();
+        let mut follow = false;
+        for ancestor in path.ancestors() {
+            // starting from the path itself and going upwards
+            let Some(is_symlink_dir) = *cache
+                .entry(ancestor.to_path_buf())
+                .or_insert_with(|| check_symlink_dir(ancestor, follow_links))
+            else {
+                out.push(None);
+                continue 'outer;
+            };
+            follow |= is_symlink_dir;
+            if path == base {
+                break;
+            }
+        }
+        out.push(Some(follow));
+    }
+    out
 }

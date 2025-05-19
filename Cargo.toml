@@ -15,6 +15,9 @@ resolver = "2"
 [dependencies]
 globset = "0.4"
 walkdir = "2"
+# debugging
+log = { version = "0.4", features = ["kv"] }
+env_logger = { version = "0.11", features = ["kv"] }
 
 [target.'cfg(windows)'.dependencies.winapi-util]
 version = "0.1"
