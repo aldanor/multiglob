@@ -37,18 +37,23 @@ fn assert_mg_eq_wd(mg: MultiGlobWalker, wd: WalkDir) {
     }
 }
 
-#[rstest]
-fn test_double_star_at_root(
-    #[values("base", "base/asym")] base: &str,
-    #[values(false, true)] follow_links: bool,
-) -> Result<()> {
+fn setup_dir_with_syms() -> Dir {
     let dir = Dir::tmp();
-    dir.mkdirp("base");
+    let base = "base/x/y";
+    dir.mkdirp(base);
     dir.mkdirp("a/b");
-    dir.symlink_dir("a", "base/asym");
+    dir.symlink_dir("a", format!("{base}/asym"));
     dir.symlink_dir("a/b", "a/bsym");
     dir.touch("a/b/c");
+    dir
+}
 
+#[rstest]
+fn test_double_star_at_root(
+    #[values("base/x/y", "base/x/y/asym")] base: &str,
+    #[values(false, true)] follow_links: bool,
+) -> Result<()> {
+    let dir = setup_dir_with_syms();
     let base = dir.path().join(base);
     assert_mg_eq_wd(
         MultiGlobBuilder::new(&base, ["**"]).follow_links(follow_links).build().unwrap(),
@@ -63,13 +68,7 @@ fn test_double_star_at_path(
     #[values("x/y", "x/y/asym", "x/y/asym/b")] path: &str,
     #[values(false, true)] follow_links: bool,
 ) -> Result<()> {
-    let dir = Dir::tmp();
-    dir.mkdirp("base/x/y");
-    dir.mkdirp("a/b");
-    dir.symlink_dir("a", "base/x/y/asym");
-    dir.symlink_dir("a/b", "a/bsym");
-    dir.touch("a/b/c");
-
+    let dir = setup_dir_with_syms();
     let base = dir.path().join("base");
     assert_mg_eq_wd(
         MultiGlobBuilder::new(&base, [format!("{path}/**")])
