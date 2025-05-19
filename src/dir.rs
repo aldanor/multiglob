@@ -181,6 +181,12 @@ impl DirEntry {
     }
 }
 
+impl From<walkdir::DirEntry> for DirEntry {
+    fn from(entry: walkdir::DirEntry) -> Self {
+        Self(DirEntryInner::Walk(entry))
+    }
+}
+
 impl fmt::Debug for DirEntry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "DirEntry({:?})", self.path())

@@ -27,7 +27,6 @@ impl Default for MultiGlobOptions {
 impl MultiGlobOptions {
     pub fn configure_walkdir(&self, walkdir: WalkDir) -> WalkDir {
         walkdir
-            .follow_root_links(true)
             .sort_by_file_name()
             .follow_links(self.follow_links)
             .max_open(self.max_open)
@@ -65,13 +64,13 @@ impl MultiGlobBuilder {
         let mut walker = MultiGlobWalker::new(self.base.clone(), self.opts.clone());
         let glob_groups = cluster_globs(&self.patterns);
         for (base, patterns) in glob_groups {
-            let base = if base.components().next().is_none() {
-                self.base.clone()
-            } else {
-                self.base.join(base)
-            };
-            debug!(base:?, patterns:?; "adding a glob group");
-            walker.add(base, patterns, skip_invalid)?;
+            let mut base = self.base.join(base);
+            let is_root = base == self.base;
+            if is_root {
+                base = self.base.clone();
+            }
+            debug!(base:?, patterns:?, is_root; "adding a glob group");
+            walker.add(base, is_root, patterns, skip_invalid)?;
         }
         Ok(walker.rev())
     }

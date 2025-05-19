@@ -6,6 +6,7 @@ use std::{
 };
 
 use globset::{Glob, GlobSet, GlobSetBuilder};
+use log::debug;
 use walkdir::WalkDir;
 
 use crate::{builder::MultiGlobOptions, util::is_glob_like, DirEntry, GlobError};
@@ -185,26 +186,31 @@ struct NodeWalker {
     index_buf: Vec<usize>,
     walkdir_fn: WalkDirFn,
     opts: MultiGlobOptions,
-    follow: bool, // there were symlinks along the way and follow_links was on
+    follow: bool,
 }
 
 impl NodeWalker {
     pub fn new(
         node: WalkPlanNodeCompiled,
         base: PathBuf,
+        is_root: bool,
         walkdir_fn: WalkDirFn,
         opts: MultiGlobOptions,
     ) -> Self {
         let state = match node.matcher {
             WalkNodeMatcher::Path { paths } => {
+                debug!("creating new path node at {} with paths {paths:?}", base.display());
                 let paths = paths.iter().map(|p| base.join(p)).collect();
                 NodeWalkerState::Path { paths, index: 0 }
             }
             WalkNodeMatcher::Walk { globset, recursive } => {
                 let max_depth = if recursive { usize::MAX } else { 1 };
                 // TODO: add depth support from root, track current depth
-                println!("new walker with base: {}", base.display());
-                let walker = walkdir_fn(WalkDir::new(&base)).max_depth(max_depth).into_iter();
+                debug!("creating new walker at {}, recursive={recursive}", base.display());
+                let walker = walkdir_fn(WalkDir::new(&base))
+                    .max_depth(max_depth)
+                    .follow_root_links(is_root)
+                    .into_iter();
                 NodeWalkerState::Walk { globset, walker }
             }
         };
@@ -217,6 +223,11 @@ impl NodeWalker {
             opts,
             follow: false,
         }
+    }
+
+    pub fn set_follow(mut self, follow: bool) -> Self {
+        self.follow = follow;
+        self
     }
 }
 
@@ -249,7 +260,9 @@ impl Iterator for NodeWalker {
                     self.index_buf.push(i);
                 }
                 NodeWalkerState::Walk { walker, globset } => {
+                    debug!("trying to walk...");
                     let walk_entry = itry!(walker.next()?);
+                    debug!("walk entry candidate: {walk_entry:?}");
                     if let Ok(path) = walk_entry.path().strip_prefix(&self.base) {
                         globset.matches_into(path, &mut self.index_buf);
                         if !self.index_buf.is_empty() {
@@ -261,8 +274,11 @@ impl Iterator for NodeWalker {
 
             let Some(entry) = entry else { continue };
             let mut out = NodeWalkerOutput::default();
+
             let path = entry.path().to_path_buf();
-            let is_dir = entry.file_type().is_dir(); // will account for follow_links already
+            let is_dir = entry.file_type().is_dir(); // will account for follow_links
+            let follow = entry.path_is_symlink();
+
             let mut entry = Some(entry);
             for &i in &self.index_buf {
                 let dst = &self.destinations[i];
@@ -270,12 +286,16 @@ impl Iterator for NodeWalker {
                     out.terminal = entry.take();
                 }
                 if !dst.destinations.is_empty() && is_dir {
-                    out.nodes.push(NodeWalker::new(
-                        dst.clone(),
-                        path.clone(),
-                        self.walkdir_fn.clone(),
-                        self.opts.clone(),
-                    ));
+                    out.nodes.push(
+                        NodeWalker::new(
+                            dst.clone(),
+                            path.clone(),
+                            false,
+                            self.walkdir_fn.clone(),
+                            self.opts.clone(),
+                        )
+                        .set_follow(follow),
+                    );
                 }
             }
             if out.terminal.is_some() || !out.nodes.is_empty() {
@@ -300,6 +320,7 @@ impl MultiGlobWalker {
     pub(crate) fn add(
         &mut self,
         base: PathBuf,
+        is_root: bool,
         patterns: Vec<String>,
         skip_invalid: bool,
     ) -> Result<(), GlobError> {
@@ -307,7 +328,7 @@ impl MultiGlobWalker {
         let node = WalkPlanNodeCompiled::new(&plan, skip_invalid)?;
         let opts = self.opts.clone();
         let walkdir_fn = Arc::new(move |walkdir| opts.configure_walkdir(walkdir));
-        let walker = NodeWalker::new(node, base, walkdir_fn, self.opts.clone());
+        let walker = NodeWalker::new(node, base, is_root, walkdir_fn, self.opts.clone());
         self.stack.push(walker);
         Ok(())
     }
@@ -332,11 +353,7 @@ impl Iterator for MultiGlobWalker {
             self.stack = stack
                 .into_iter()
                 .zip(follow)
-                .filter_map(|(node, follow)| follow.map(|f| (node, f)))
-                .map(|(mut node, follow)| {
-                    node.follow = follow;
-                    node
-                })
+                .filter_map(|(node, follow)| follow.map(|f| node.set_follow(f)))
                 .collect();
             self.first = false;
         }
@@ -361,13 +378,7 @@ fn check_base_dirs<P: AsRef<Path>>(
     paths: impl IntoIterator<Item = P>,
     follow_links: bool,
 ) -> Vec<Option<bool>> {
-    // For a collection of starting directories, check if it's valid directory path if
-    // follow_links is enabled, we follow symlinks (note: root link is always being followed).
-    // For each base path, return None if target directory is not a directory or if there
-    // were symlinks along the way which we couldn't follow (including the target directory
-    // itself in case it's not the root one); otherwise, return whether symlinks had to
-    // be expanded along the way (not including the base directory). We do it in one go here
-    // to avoid duplicate fs::metadata calls.
+    // Some(true) if it's a symlink dir (requires follow_links); Some(false) if normal dir; None otherwise
 
     fn check_symlink_dir(path: &Path, follow_links: bool) -> Option<bool> {
         // check if path is a directory and whether we had to follow a symlink to resolve it
@@ -381,29 +392,45 @@ fn check_base_dirs<P: AsRef<Path>>(
         }
     }
 
-    // note: if follow_links=false, could special-case this because we don't have to check ancestors
-
     let mut out = Vec::new();
     let mut cache = HashMap::new();
-    cache.insert(base.to_owned(), check_symlink_dir(&base, true).map(|_| false));
+    // allow following root links
+    cache.insert(base.to_owned(), check_symlink_dir(&base, true));
+
     'outer: for path in paths {
         let path = path.as_ref();
-        let mut follow = false;
-        for ancestor in path.ancestors() {
-            // starting from the path itself and going upwards
-            let Some(is_symlink_dir) = *cache
-                .entry(ancestor.to_path_buf())
-                .or_insert_with(|| check_symlink_dir(ancestor, follow_links))
-            else {
-                out.push(None);
-                continue 'outer;
-            };
-            follow |= is_symlink_dir;
-            if path == base {
-                break;
+        debug!("checking base dir {}", path.display());
+
+        if path == base {
+            out.push(*cache.get(path).unwrap());
+        } else if path.strip_prefix(&base).is_ok() {
+            // check the target first
+            let is_sym = check_symlink_dir(path, follow_links);
+            if is_sym.is_some() && !follow_links {
+                // if follow_links is enabled, just need to check the target which we already did
+                for ancestor in path.ancestors() {
+                    if ancestor == Path::new("") {
+                        break; // for rel paths, it will end with empty path
+                    } else if ancestor == path {
+                        continue; // already checked that
+                    } else if ancestor == base {
+                        break;
+                    }
+                    let Some(false) = *cache
+                        .entry(ancestor.to_path_buf())
+                        .or_insert_with(|| check_symlink_dir(ancestor, false))
+                    else {
+                        debug!("none");
+                        out.push(None);
+                        continue 'outer;
+                    };
+                }
             }
+            out.push(is_sym);
+        } else {
+            // absolute path; only check the final destination
+            out.push(check_symlink_dir(path, follow_links));
         }
-        out.push(Some(follow));
     }
     out
 }
