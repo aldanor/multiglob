@@ -43,12 +43,10 @@ pub struct MultiGlobBuilder {
 }
 
 impl MultiGlobBuilder {
-    /// Construct a new globwalk builder from a base directory and a list of patterns.
+    /// Construct a new multiglob walker builder from a base directory and a list of patterns.
     ///
     /// When iterated, the `base` directory will be recursively searched for paths
     /// matching `patterns`.
-    ///
-    /// If `patterns` is empty, all entries will be returned without matching.
     pub fn new<B, P, S>(base: B, patterns: P) -> Self
     where
         B: AsRef<Path>,
@@ -77,10 +75,12 @@ impl MultiGlobBuilder {
         Ok(walker.rev())
     }
 
+    /// Construct a multiglob walker; error may occur when parsing globs.
     pub fn build(&self) -> Result<MultiGlobWalker, GlobError> {
         self.impl_build(false)
     }
 
+    /// Construct a multiglob walker and skip all invalid globs patterns.
     pub fn build_skip_invalid(&self) -> MultiGlobWalker {
         self.impl_build(true).unwrap()
     }
@@ -109,6 +109,8 @@ impl MultiGlobBuilder {
     /// where a recursive pattern is encountered. For example, if maximum depth is 2
     /// and patterns are `../a/**` and `b/**`, then the deepest entries will look
     // like `../a/x/y` and `b/x/y`.
+    ///
+    /// By default, there's no max depth limit.
     pub fn max_depth(mut self, depth: usize) -> Self {
         self.opts.max_depth = depth;
         if self.opts.max_depth < self.opts.max_depth {
@@ -127,8 +129,9 @@ impl MultiGlobBuilder {
     /// the link while the path corresponds to the link. See the [`DirEntry`]
     /// type for more details.
     ///
-    /// Note, this only affects `*` and `**` parts of globs; for all other
-    /// parts of the globs, symlinks are always resolved automatically.
+    /// Note, this only affects parts of globs starting from the first glob-like
+    /// component. For example, in a pattern `a/b/*/c/**` this will only affect
+    /// the `*/c/**` part of the pattern.
     ///
     /// [`DirEntry`]: struct.DirEntry.html
     pub fn follow_links(mut self, yes: bool) -> Self {

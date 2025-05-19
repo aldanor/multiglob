@@ -1,6 +1,6 @@
 use std::{
     collections::BTreeMap,
-    fs, io, mem,
+    fmt, fs, io, mem,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -20,7 +20,7 @@ macro_rules! itry {
     };
 }
 
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 enum WalkNodeType {
     #[default]
     Path,
@@ -115,6 +115,22 @@ impl WalkPlanNode {
         //     }
         // }
         // self.patterns = patterns;
+    }
+}
+
+impl fmt::Debug for WalkPlanNode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let name = if self.patterns.is_empty() && self.is_terminal {
+            "Terminal".into()
+        } else {
+            let t = if self.is_terminal { "[T]" } else { "" };
+            format!("{:?}{t}", self.node_type)
+        };
+        let mut s = f.debug_struct(&name);
+        for (k, v) in &self.patterns {
+            s.field(k, &v);
+        }
+        s.finish()
     }
 }
 
@@ -342,5 +358,35 @@ impl Iterator for MultiGlobWalker {
             };
         }
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use insta::assert_debug_snapshot;
+
+    use super::WalkPlanNode;
+
+    #[test]
+    fn test_walk_plan_node() {
+        let node = WalkPlanNode::build(&[
+            "foo/bar",
+            "x/y",
+            "foo/bar/../z",
+            "../../a",
+            "../x/y",
+            "../x/**/y",
+            "../x/**/z/*",
+            "../x/**",
+            "/var/folders/",
+            "/var/folders/1/2",
+            "/var/folders/*.doc",
+            "/home/user",
+        ]);
+        let mut settings = insta::Settings::clone_current();
+        settings.set_snapshot_path("src/tests/snapshots");
+        settings.bind(|| {
+            assert_debug_snapshot!(node);
+        });
     }
 }

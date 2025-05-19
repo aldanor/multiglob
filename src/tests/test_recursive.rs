@@ -1,6 +1,6 @@
-use std::env;
 use std::path::Path;
 
+use current_dir::Cwd;
 use rstest::rstest;
 use walkdir::WalkDir;
 
@@ -10,7 +10,7 @@ use super::util::{Dir, RecursiveResults, Result};
 
 #[ctor::ctor]
 fn init() {
-    env_logger::builder().filter_module("multiglob", log::LevelFilter::Trace).init();
+    env_logger::init();
 }
 
 #[track_caller]
@@ -71,13 +71,12 @@ fn test_double_star_at_root_rel(
     #[values(false, true)] follow_links: bool,
 ) -> Result<()> {
     let dir = setup_dir_with_syms();
-    let cwd = env::current_dir().unwrap();
-    env::set_current_dir(dir.path().join("base/x/y")).unwrap();
+    let mut cwd = Cwd::mutex().lock().unwrap();
+    cwd.set(dir.path().join("base/x/y")).unwrap();
     assert_mg_eq_wd(
         MultiGlobBuilder::new(&base, ["**"]).follow_links(follow_links).build().unwrap(),
         WalkDir::new(&base).follow_links(follow_links),
     );
-    env::set_current_dir(cwd).unwrap();
     Ok(())
 }
 
@@ -104,8 +103,8 @@ fn test_double_star_at_path_rel(
     #[values(false, true)] follow_links: bool,
 ) -> Result<()> {
     let dir = setup_dir_with_syms();
-    let cwd = env::current_dir().unwrap();
-    env::set_current_dir(dir.path().join("base/x")).unwrap();
+    let mut cwd = Cwd::mutex().lock().unwrap();
+    cwd.set(dir.path().join("base/x")).unwrap();
     let base = Path::new("y");
     assert_mg_eq_wd(
         MultiGlobBuilder::new(base, [format!("{path}/**")])
@@ -114,7 +113,6 @@ fn test_double_star_at_path_rel(
             .unwrap(),
         WalkDir::new(base.join(path)).follow_links(follow_links).follow_root_links(false),
     );
-    env::set_current_dir(cwd).unwrap();
     Ok(())
 }
 
