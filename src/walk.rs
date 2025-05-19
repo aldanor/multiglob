@@ -240,10 +240,10 @@ impl Iterator for NodeWalker {
                     let i = *index;
                     *index += 1;
                     let path = &paths[i];
-                    let Ok(mut meta) = fs::symlink_metadata(&path) else { continue };
+                    let Ok(mut meta) = fs::symlink_metadata(path) else { continue };
                     let follow = meta.is_symlink() && self.opts.follow_links;
                     if follow {
-                        if let Ok(m) = fs::metadata(&path) {
+                        if let Ok(m) = fs::metadata(path) {
                             meta = m;
                         } else {
                             continue;
@@ -333,9 +333,9 @@ impl Iterator for MultiGlobWalker {
         while !self.stack.is_empty() {
             match self.stack.last_mut().unwrap().next() {
                 None => _ = self.stack.pop(),
-                Some(Err(err)) => return Some(Err(err.into())),
+                Some(Err(err)) => return Some(Err(err)),
                 Some(Ok(mut res)) => {
-                    self.stack.extend(res.nodes.drain(..));
+                    self.stack.append(&mut res.nodes);
                     if let Some(terminal) = res.terminal {
                         return Some(Ok(terminal));
                     }

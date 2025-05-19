@@ -32,12 +32,6 @@ fn error_with_path(err: io::Error, path: &Path) -> io::Error {
 }
 
 impl DirEntryPath {
-    pub fn from_path(path: PathBuf, follow: bool) -> io::Result<Self> {
-        let metadata = if follow { fs::metadata(&path) } else { fs::symlink_metadata(&path) }
-            .map_err(|err| io::Error::new(err.kind(), format!("{err} ({})", path.display())))?;
-        Ok(Self::from_meta(path, metadata, follow))
-    }
-
     pub fn from_meta(path: PathBuf, metadata: fs::Metadata, follow: bool) -> Self {
         Self {
             path,
@@ -165,11 +159,7 @@ impl DirEntry {
     /// returned.
     pub fn file_name(&self) -> &OsStr {
         let path = self.path();
-        path.file_name().unwrap_or_else(|| path.as_os_str())
-    }
-
-    pub(crate) fn from_path(path: PathBuf, follow: bool) -> io::Result<Self> {
-        Ok(Self(DirEntryInner::Path(DirEntryPath::from_path(path, follow)?)))
+        path.file_name().unwrap_or(path.as_os_str())
     }
 
     pub(crate) fn from_meta(path: PathBuf, metadata: fs::Metadata, follow: bool) -> Self {
