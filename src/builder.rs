@@ -61,7 +61,7 @@ impl MultiGlobBuilder {
     }
 
     fn impl_build(&self, skip_invalid: bool) -> Result<MultiGlobWalker, GlobError> {
-        let mut walker = MultiGlobWalker::new(self.base.clone(), self.opts.clone());
+        let mut walker = MultiGlobWalker::new(self.opts.clone());
         let glob_groups = cluster_globs(&self.patterns);
         for (base, patterns) in glob_groups {
             let mut base = self.base.join(base);

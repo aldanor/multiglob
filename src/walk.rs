@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
     fs, io, mem,
     path::{Path, PathBuf},
     sync::Arc,
@@ -186,7 +186,6 @@ struct NodeWalker {
     index_buf: Vec<usize>,
     walkdir_fn: WalkDirFn,
     opts: MultiGlobOptions,
-    follow: bool,
 }
 
 impl NodeWalker {
@@ -221,13 +220,7 @@ impl NodeWalker {
             index_buf: Vec::new(),
             walkdir_fn,
             opts,
-            follow: false,
         }
-    }
-
-    pub fn set_follow(mut self, follow: bool) -> Self {
-        self.follow = follow;
-        self
     }
 }
 
@@ -277,7 +270,7 @@ impl Iterator for NodeWalker {
 
             let path = entry.path().to_path_buf();
             let is_dir = entry.file_type().is_dir(); // will account for follow_links
-            let follow = entry.path_is_symlink();
+                                                     // let follow = entry.path_is_symlink();
 
             let mut entry = Some(entry);
             for &i in &self.index_buf {
@@ -286,16 +279,13 @@ impl Iterator for NodeWalker {
                     out.terminal = entry.take();
                 }
                 if !dst.destinations.is_empty() && is_dir {
-                    out.nodes.push(
-                        NodeWalker::new(
-                            dst.clone(),
-                            path.clone(),
-                            false,
-                            self.walkdir_fn.clone(),
-                            self.opts.clone(),
-                        )
-                        .set_follow(follow),
-                    );
+                    out.nodes.push(NodeWalker::new(
+                        dst.clone(),
+                        path.clone(),
+                        false,
+                        self.walkdir_fn.clone(),
+                        self.opts.clone(),
+                    ));
                 }
             }
             if out.terminal.is_some() || !out.nodes.is_empty() {
@@ -306,15 +296,13 @@ impl Iterator for NodeWalker {
 }
 
 pub struct MultiGlobWalker {
-    base: PathBuf,
     opts: MultiGlobOptions,
     stack: Vec<NodeWalker>,
-    first: bool,
 }
 
 impl MultiGlobWalker {
-    pub(crate) fn new(base: PathBuf, opts: MultiGlobOptions) -> Self {
-        Self { base, opts, stack: Vec::new(), first: true }
+    pub(crate) fn new(opts: MultiGlobOptions) -> Self {
+        Self { opts, stack: Vec::new() }
     }
 
     pub(crate) fn add(
@@ -342,21 +330,6 @@ impl Iterator for MultiGlobWalker {
     type Item = io::Result<DirEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.first {
-            // on first iteration, filter out unreachable base dirs and mark their follow status
-            let stack = mem::take(&mut self.stack);
-            let follow = check_base_dirs(
-                &self.base,
-                stack.iter().map(|node| &node.base),
-                self.opts.follow_links,
-            );
-            self.stack = stack
-                .into_iter()
-                .zip(follow)
-                .filter_map(|(node, follow)| follow.map(|f| node.set_follow(f)))
-                .collect();
-            self.first = false;
-        }
         while !self.stack.is_empty() {
             match self.stack.last_mut().unwrap().next() {
                 None => _ = self.stack.pop(),
@@ -371,66 +344,4 @@ impl Iterator for MultiGlobWalker {
         }
         None
     }
-}
-
-fn check_base_dirs<P: AsRef<Path>>(
-    base: &Path,
-    paths: impl IntoIterator<Item = P>,
-    follow_links: bool,
-) -> Vec<Option<bool>> {
-    // Some(true) if it's a symlink dir (requires follow_links); Some(false) if normal dir; None otherwise
-
-    fn check_symlink_dir(path: &Path, follow_links: bool) -> Option<bool> {
-        // check if path is a directory and whether we had to follow a symlink to resolve it
-        let sym = fs::symlink_metadata(path).ok()?;
-        if sym.is_dir() {
-            Some(false)
-        } else if sym.is_symlink() && follow_links {
-            fs::metadata(path).ok()?.is_dir().then_some(true)
-        } else {
-            None
-        }
-    }
-
-    let mut out = Vec::new();
-    let mut cache = HashMap::new();
-    // allow following root links
-    cache.insert(base.to_owned(), check_symlink_dir(&base, true));
-
-    'outer: for path in paths {
-        let path = path.as_ref();
-        debug!("checking base dir {}", path.display());
-
-        if path == base {
-            out.push(*cache.get(path).unwrap());
-        } else if path.strip_prefix(&base).is_ok() {
-            // check the target first
-            let is_sym = check_symlink_dir(path, follow_links);
-            if is_sym.is_some() && !follow_links {
-                // if follow_links is enabled, just need to check the target which we already did
-                for ancestor in path.ancestors() {
-                    if ancestor == Path::new("") {
-                        break; // for rel paths, it will end with empty path
-                    } else if ancestor == path {
-                        continue; // already checked that
-                    } else if ancestor == base {
-                        break;
-                    }
-                    let Some(false) = *cache
-                        .entry(ancestor.to_path_buf())
-                        .or_insert_with(|| check_symlink_dir(ancestor, false))
-                    else {
-                        debug!("none");
-                        out.push(None);
-                        continue 'outer;
-                    };
-                }
-            }
-            out.push(is_sym);
-        } else {
-            // absolute path; only check the final destination
-            out.push(check_symlink_dir(path, follow_links));
-        }
-    }
-    out
 }

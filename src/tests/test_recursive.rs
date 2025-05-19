@@ -29,8 +29,8 @@ fn assert_ent_eq(a: &DirEntry, b: &DirEntry) {
 fn assert_mg_eq_wd(mg: MultiGlobWalker, wd: WalkDir) {
     let ents_mg = RecursiveResults::collect(mg);
     let ents_wd = RecursiveResults::collect(wd);
-    ents_mg.assert_no_errors();
-    ents_wd.assert_no_errors();
+    ents_mg.assert_no_errors("mg");
+    ents_wd.assert_no_errors("wd");
     assert_eq!(ents_mg.sorted_paths(), ents_wd.sorted_paths());
     for (mg, wd) in ents_mg.sorted_ents().into_iter().zip(ents_wd.sorted_ents()) {
         assert_ent_eq(&mg, &wd);
@@ -59,7 +59,10 @@ fn test_double_star_at_root(
 }
 
 #[rstest]
-fn test_double_star_at_path(#[values(false, true)] follow_links: bool) -> Result<()> {
+fn test_double_star_at_path(
+    #[values("x/y", "x/y/asym", "x/y/asym/b")] path: &str,
+    #[values(false, true)] follow_links: bool,
+) -> Result<()> {
     let dir = Dir::tmp();
     dir.mkdirp("base/x/y");
     dir.mkdirp("a/b");
@@ -69,8 +72,11 @@ fn test_double_star_at_path(#[values(false, true)] follow_links: bool) -> Result
 
     let base = dir.path().join("base");
     assert_mg_eq_wd(
-        MultiGlobBuilder::new(&base, ["x/y/**"]).follow_links(follow_links).build().unwrap(),
-        WalkDir::new(&base.join("x/y")).follow_links(follow_links),
+        MultiGlobBuilder::new(&base, [format!("{path}/**")])
+            .follow_links(follow_links)
+            .build()
+            .unwrap(),
+        WalkDir::new(&base.join(path)).follow_links(follow_links).follow_root_links(false),
     );
 
     Ok(())

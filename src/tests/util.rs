@@ -54,8 +54,12 @@ impl RecursiveResults {
 
     /// Assert that no errors have occurred.
     #[track_caller]
-    pub fn assert_no_errors(&self) {
-        assert!(self.errs.is_empty(), "expected to find no errors, but found: {:?}", self.errs);
+    pub fn assert_no_errors(&self, msg: &str) {
+        assert!(
+            self.errs.is_empty(),
+            "expected to find no errors, but found: {:?} ({msg})",
+            self.errs
+        );
     }
 
     /// Return all the successfully retrieved directory entries in the order
