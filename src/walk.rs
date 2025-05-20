@@ -237,15 +237,12 @@ struct NodeWalker {
 impl NodeWalker {
     pub fn new(
         node: WalkPlanNodeCompiled,
-        mut base: PathBuf,
+        base: PathBuf,
         is_root: bool,
         walkdir_fn: WalkDirFn,
         opts: MultiGlobOptions,
         starting_node: bool,
     ) -> Self {
-        if base == PathBuf::new() {
-            base = ".".into();
-        }
         let state = match node.matcher {
             WalkNodeMatcher::Path { paths } => {
                 debug!("creating new path node at {} with paths {paths:?}", base.display());
