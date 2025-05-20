@@ -37,7 +37,7 @@ where
 }
 
 #[test]
-fn test_simple_cases() {
+fn test_walk_path() {
     let dir = setup_dir_with_syms();
     let p = dir.path();
 
@@ -61,6 +61,12 @@ fn test_simple_cases() {
 
     let res = mg_collect(p.join("base/x"), &["", "asym", "wrong"]);
     assert_eq!(res.sorted_paths(), vec![p.join("base/x"), p.join("base/x/asym")]);
+}
+
+#[test]
+fn test_walk_glob() {
+    let dir = setup_dir_with_syms();
+    let p = dir.path();
 
     let res = mg_collect(p.join("base/x"), &["a*"]);
     assert_eq!(res.sorted_paths(), vec![p.join("base/x/asym")]);
