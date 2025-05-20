@@ -8,21 +8,55 @@ use std::{
 
 // note/credits: most of DirEntryPath-related code is borrowed from walkdir with minor adjustments
 
+/// A directory entry.
+///
+/// This is the type of value that is yielded from ['MultiGlobWalker'] iterator.
+/// this crate.
+///
+/// ### Differences with `std::fs::DirEntry`
+///
+/// This type mostly mirrors the type by the same name in [`std::fs`]. There
+/// are some differences however:
+///
+/// * All recursive directory iterators must inspect the entry's type.
+/// Therefore, the value is stored and its access is guaranteed to be cheap and
+/// successful.
+/// * [`path`] and [`file_name`] return borrowed variants.
+/// * If [`follow_links`] was enabled in the builder, then all
+/// operations except for [`path`] operate on the link target. Otherwise, all
+/// operations operate on the symbolic link.
+///
+/// [`MultiGlobWalker`]: struct.MultiGlobWalker.html
+/// [`std::fs`]: https://doc.rust-lang.org/stable/std/fs/index.html
+/// [`path`]: #method.path
+/// [`file_name`]: #method.file_name
+/// [`follow_links`]: struct.WalkDir.html#method.follow_links
+/// [`DirEntryExt`]: trait.DirEntryExt.html
 #[derive(Clone)]
 pub struct DirEntry(DirEntryInner);
 
 #[derive(Clone)]
 enum DirEntryInner {
+    /// The entry was created from following a direct path link.
     Path(DirEntryPath),
+    /// The entry was created by walking over a glob.
     Walk(walkdir::DirEntry),
 }
 
 #[derive(Clone)]
 struct DirEntryPath {
+    /// The path as reported by the [`fs::ReadDir`] iterator (even if it's a
+    /// symbolic link).
+    ///
+    /// [`fs::ReadDir`]: https://doc.rust-lang.org/stable/std/fs/struct.ReadDir.html
     path: PathBuf,
+    /// The file type.
     ty: fs::FileType,
+    /// Is set when this entry was created from a symbolic link and the user
+    /// expects the iterator to follow symbolic links.
     follow_link: bool,
-    // TODO: add depth when support for it is implemented
+    /// The underlying metadata (Windows only). We store this on Windows
+    /// because this comes for free while reading a directory.
     #[cfg(windows)]
     metadata: fs::Metadata,
 }
@@ -54,8 +88,6 @@ impl DirEntryPath {
             .map_err(|err| error_with_path(err, &self.path))
     }
 }
-
-// TODO: double-check and clean up docstrings for DirEntry
 
 impl DirEntry {
     /// The full path that this entry represents.

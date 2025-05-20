@@ -115,7 +115,7 @@ impl MultiGlobBuilder {
     /// Note that the depth is counted not from the base directory, but from a point
     /// where a recursive pattern is encountered. For example, if maximum depth is 2
     /// and patterns are `../a/**` and `b/**`, then the deepest entries will look
-    // like `../a/x/y` and `b/x/y`.
+    /// like `../a/x/y` and `b/x/y`.
     ///
     /// By default, there's no max depth limit.
     pub fn max_depth(mut self, depth: usize) -> Self {
