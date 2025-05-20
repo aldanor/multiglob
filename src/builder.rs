@@ -120,9 +120,6 @@ impl MultiGlobBuilder {
     /// By default, there's no max depth limit.
     pub fn max_depth(mut self, depth: usize) -> Self {
         self.opts.max_depth = depth;
-        if self.opts.max_depth < self.opts.max_depth {
-            self.opts.max_depth = self.opts.max_depth;
-        }
         self
     }
 
