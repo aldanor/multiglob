@@ -36,6 +36,8 @@ impl MultiGlobOptions {
     }
 }
 
+/// A builder to create an iterator over multiple globs from a given base path.
+#[derive(Clone)]
 pub struct MultiGlobBuilder {
     base: PathBuf,
     patterns: Vec<String>,
@@ -147,7 +149,7 @@ impl MultiGlobBuilder {
     }
 
     /// Set the maximum number of simultaneously open file descriptors used
-    /// by the iterator.
+    /// by glob walker iterators.
     ///
     /// `n` must be greater than or equal to `1`. If `n` is `0`, then it is set
     /// to `1` automatically. If this is not set, then it defaults to some
@@ -182,7 +184,7 @@ impl MultiGlobBuilder {
     /// Do not cross file system boundaries.
     ///
     /// When this option is enabled, directory traversal will not descend into
-    /// directories that are on a different file system from the root path.
+    /// directories that are on a different file system from the base path.
     ///
     /// Currently, this option is only supported on Unix and Windows. If this
     /// option is used on an unsupported platform, then directory traversal

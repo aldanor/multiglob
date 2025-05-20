@@ -323,6 +323,7 @@ impl Iterator for NodeWalker {
                 NodeWalkerState::Walk { walker, globset, base_checked } => {
                     debug!("base_checked={base_checked}");
                     if !*base_checked {
+                        // if we don't do this before kicking off walkdir iteration, it will yield an error
                         debug!("base not checked... checking {:?}", self.base);
                         if !fs::exists(&self.base).unwrap_or(false) {
                             debug!("not going to walk {:?}, doesn't exist", self.base);
@@ -373,6 +374,12 @@ impl Iterator for NodeWalker {
     }
 }
 
+/// An iterator for traversing multiple globs from a given base path.
+///
+/// A value with this type must be constructed with [`MultiGlobBuilder`] type which
+/// allows configuring various options related to walking and glob matching.
+///
+/// [`MultiGlobBuilder`]: struct.MultiGlobBuilder.html
 pub struct MultiGlobWalker {
     opts: MultiGlobOptions,
     stack: Vec<NodeWalker>,

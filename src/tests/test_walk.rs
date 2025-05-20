@@ -128,4 +128,7 @@ fn test_walk_rel() {
 
     let res = mg_collect("nope", &["*"]);
     assert_eq!(res.sorted_paths(), Vec::<PathBuf>::new());
+
+    let res = mg_collect("../nope", &["*"]);
+    assert_eq!(res.sorted_paths(), Vec::<PathBuf>::new());
 }
