@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+    fmt::format,
+    path::{Path, PathBuf},
+};
 
 use current_dir::Cwd;
 use rstest::rstest;
@@ -16,6 +19,9 @@ fn setup_dir_with_syms() -> Dir {
     dir.symlink_dir("a", format!("{base}/asym"));
     dir.symlink_dir("a/b", "a/bsym");
     dir.touch("a/b/c");
+    dir.touch(format!("{base}/d.1"));
+    dir.touch(format!("{base}/d.2"));
+    dir.touch(format!("{base}/d.3"));
     dir
 }
 
@@ -55,4 +61,25 @@ fn test_simple_cases() {
 
     let res = mg_collect(p.join("base/x"), &["", "asym", "wrong"]);
     assert_eq!(res.sorted_paths(), vec![p.join("base/x"), p.join("base/x/asym")]);
+
+    let res = mg_collect(p.join("base/x"), &["a*"]);
+    assert_eq!(res.sorted_paths(), vec![p.join("base/x/asym")]);
+
+    let res = mg_collect(p.join("base/x"), &["d.{1,2}", "asym"]);
+    assert_eq!(
+        res.sorted_paths(),
+        vec![p.join("base/x/asym"), p.join("base/x/d.1"), p.join("base/x/d.2")]
+    );
+
+    let res = mg_collect(p.join("base/x"), &["d.[12]", "asym"]);
+    assert_eq!(
+        res.sorted_paths(),
+        vec![p.join("base/x/asym"), p.join("base/x/d.1"), p.join("base/x/d.2")]
+    );
+
+    let res = mg_collect(p.join("base/x"), &["d.{1,2}", "."]);
+    assert_eq!(
+        res.sorted_paths(),
+        vec![p.join("base/x"), p.join("base/x/d.1"), p.join("base/x/d.2")]
+    );
 }
