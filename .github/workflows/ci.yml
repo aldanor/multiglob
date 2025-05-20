@@ -1,0 +1,78 @@
+name: ci
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "00 01 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - build: pinned
+            os: ubuntu-latest
+            rust: 1.60.0
+          - build: pinned-win
+            os: windows-latest
+            rust: 1.60.0
+          - build: stable
+            os: ubuntu-latest
+            rust: stable
+          - build: beta
+            os: ubuntu-latest
+            rust: beta
+          - build: nightly
+            os: ubuntu-latest
+            rust: nightly
+          - build: macos
+            os: macos-latest
+            rust: stable
+          - build: win-msvc
+            os: windows-latest
+            rust: stable
+          - build: win-gnu
+            os: windows-latest
+            rust: stable-x86_64-gnu
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+      - run: cargo build --verbose
+      - if: startsWith(matrix.build, 'pinned-') == false
+        run: cargo doc --verbose
+      - if: startsWith(matrix.build, 'pinned-') == false
+        run: cargo test --verbose
+      - if: matrix.build == 'nightly'
+        run: |
+          set -x
+          cargo generate-lockfile -Z minimal-versions
+          cargo build --verbose
+          cargo test --verbose
+
+  rustfmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: rustfmt
+      - name: Check formatting
+        run: |
+          cargo fmt --all -- --check
