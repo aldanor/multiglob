@@ -182,6 +182,34 @@ impl WalkPlanNodeCompiled {
     }
 }
 
+impl fmt::Debug for WalkPlanNodeCompiled {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let name = if self.destinations.is_empty() && self.is_terminal {
+            "Terminal".into()
+        } else {
+            let t = if self.is_terminal { "[T]" } else { "" };
+            let n =
+                if matches!(self.matcher, WalkNodeMatcher::Path { .. }) { "Path" } else { "Glob" };
+            format!("{n}{t}")
+        };
+        let mut s = f.debug_struct(&name);
+        match &self.matcher {
+            WalkNodeMatcher::Path { paths } => {
+                if !paths.is_empty() {
+                    s.field("paths", &paths);
+                }
+            }
+            WalkNodeMatcher::Walk { recursive, .. } => {
+                s.field("globset", &"..").field("recursive", recursive);
+            }
+        }
+        if !self.destinations.is_empty() {
+            s.field("destinations", &self.destinations);
+        }
+        s.finish()
+    }
+}
+
 enum NodeWalkerState {
     Path { paths: Vec<PathBuf>, index: usize },
     Walk { globset: GlobSet, walker: walkdir::IntoIter },
@@ -365,7 +393,7 @@ impl Iterator for MultiGlobWalker {
 mod tests {
     use insta::assert_debug_snapshot;
 
-    use super::WalkPlanNode;
+    use super::{WalkPlanNode, WalkPlanNodeCompiled};
 
     #[test]
     fn test_walk_plan_node() {
@@ -383,10 +411,12 @@ mod tests {
             "/var/folders/*.doc",
             "/home/user",
         ]);
+        let cnode = WalkPlanNodeCompiled::new(&node, false).unwrap();
         let mut settings = insta::Settings::clone_current();
         settings.set_snapshot_path("src/tests/snapshots");
         settings.bind(|| {
             assert_debug_snapshot!(node);
+            assert_debug_snapshot!(cnode);
         });
     }
 }
