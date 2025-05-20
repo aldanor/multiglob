@@ -11,15 +11,6 @@ use walkdir::WalkDir;
 
 use crate::{builder::MultiGlobOptions, util::is_glob_like, DirEntry, GlobError};
 
-macro_rules! itry {
-    ($e:expr) => {
-        match $e {
-            Ok(v) => v,
-            Err(err) => return Some(Err(From::from(err))),
-        }
-    };
-}
-
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 enum WalkNodeType {
     #[default]
@@ -332,7 +323,10 @@ impl Iterator for NodeWalker {
                         *base_checked = true;
                     }
                     debug!("trying to walk...");
-                    let walk_entry = itry!(walker.next()?);
+                    let walk_entry = match walker.next()? {
+                        Ok(v) => v,
+                        Err(err) => return Some(Err(err.into())),
+                    };
                     debug!("walk entry candidate: {walk_entry:?}");
                     if let Ok(path) = walk_entry.path().strip_prefix(&self.base) {
                         globset.matches_into(path, &mut self.index_buf);
