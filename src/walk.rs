@@ -315,7 +315,7 @@ impl Iterator for NodeWalker {
                     if !*base_checked {
                         // if we don't do this before kicking off walkdir iteration, it will yield an error
                         debug!("base not checked... checking {:?}", self.base);
-                        if !fs::exists(&self.base).unwrap_or(false) {
+                        if !self.base.try_exists().unwrap_or(false) {
                             debug!("not going to walk {:?}, doesn't exist", self.base);
                             return None;
                         }
