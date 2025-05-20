@@ -4,6 +4,7 @@ use std::{
 };
 
 use current_dir::Cwd;
+use log::debug;
 use rstest::rstest;
 use walkdir::WalkDir;
 
@@ -88,4 +89,42 @@ fn test_walk_glob() {
         res.sorted_paths(),
         vec![p.join("base/x"), p.join("base/x/d.1"), p.join("base/x/d.2")]
     );
+}
+
+#[test]
+fn test_walk_rel() {
+    let dir = setup_dir_with_syms();
+    let p = dir.path();
+
+    let mut cwd = Cwd::mutex().lock().unwrap();
+    cwd.set(p.join("base/x")).unwrap();
+
+    let res = mg_collect("", &[] as &[&str]);
+    assert_eq!(res.sorted_paths(), Vec::<PathBuf>::new());
+
+    for b in ["", "."] {
+        for p in ["", "."] {
+            debug!("b={b:?} p={p:?}");
+            let res = mg_collect(b, &[p]);
+            assert_eq!(res.sorted_paths(), vec![PathBuf::from(".")]);
+        }
+    }
+
+    let res = mg_collect(".", &["d.1"]);
+    assert_eq!(res.sorted_paths(), vec![PathBuf::from("./d.1")]);
+
+    let res = mg_collect(".", &["d.[12]", ""]);
+    assert_eq!(
+        res.sorted_paths(),
+        vec![PathBuf::from("."), PathBuf::from("./d.1"), PathBuf::from("./d.2")]
+    );
+
+    let res = mg_collect("..", &[""]);
+    assert_eq!(res.sorted_paths(), vec![PathBuf::from("..")]);
+
+    let res = mg_collect(".", &[".."]);
+    assert_eq!(res.sorted_paths(), vec![PathBuf::from("./..")]);
+
+    let res = mg_collect("", &[".."]);
+    assert_eq!(res.sorted_paths(), vec![PathBuf::from("./..")]);
 }

@@ -61,15 +61,21 @@ impl MultiGlobBuilder {
     }
 
     fn impl_build(&self, skip_invalid: bool) -> Result<MultiGlobWalker, GlobError> {
+        debug!("-------------");
         let mut walker = MultiGlobWalker::new(self.opts.clone());
         let glob_groups = cluster_globs(&self.patterns);
         debug!("glob groups: {glob_groups:?}");
+        let mut mg_base = self.base.clone();
+        if mg_base == PathBuf::new() {
+            mg_base = ".".into();
+        }
         for (base, patterns) in glob_groups {
-            let mut base = self.base.join(base);
-            let is_root = base == self.base;
-            if is_root {
-                base = self.base.clone();
+            let mut base = mg_base.join(base);
+            if base == mg_base {
+                base = mg_base.clone();
             }
+            let is_root = base == mg_base;
+            debug!("builder: base={base:?} self.base={:?} => is_root={is_root:?}", self.base);
             debug!(base:?, patterns:?, is_root; "adding a glob group");
             walker.add(base, is_root, patterns, skip_invalid)?;
         }
