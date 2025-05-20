@@ -1,16 +1,11 @@
-use std::{
-    fmt::format,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use current_dir::Cwd;
 use log::debug;
-use rstest::rstest;
-use walkdir::WalkDir;
 
-use crate::{DirEntry, MultiGlobBuilder, MultiGlobWalker};
+use crate::MultiGlobBuilder;
 
-use super::util::{Dir, RecursiveResults, Result};
+use super::util::{Dir, RecursiveResults};
 
 fn setup_dir_with_syms() -> Dir {
     let dir = Dir::tmp();
