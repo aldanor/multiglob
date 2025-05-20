@@ -89,6 +89,9 @@ fn test_walk_glob() {
         res.sorted_paths(),
         vec![p.join("base/x"), p.join("base/x/d.1"), p.join("base/x/d.2")]
     );
+
+    let res = mg_collect("nope", &["**"]);
+    assert_eq!(res.sorted_paths(), Vec::<PathBuf>::new());
 }
 
 #[test]
@@ -127,4 +130,7 @@ fn test_walk_rel() {
 
     let res = mg_collect("", &[".."]);
     assert_eq!(res.sorted_paths(), vec![PathBuf::from("./..")]);
+
+    let res = mg_collect("nope", &["*"]);
+    assert_eq!(res.sorted_paths(), Vec::<PathBuf>::new());
 }

@@ -213,7 +213,7 @@ impl fmt::Debug for WalkPlanNodeCompiled {
 
 enum NodeWalkerState {
     Path { paths: Vec<PathBuf>, index: usize },
-    Walk { globset: GlobSet, walker: walkdir::IntoIter },
+    Walk { globset: GlobSet, walker: walkdir::IntoIter, base_checked: bool },
 }
 
 type WalkDirFn = Arc<dyn Fn(WalkDir) -> WalkDir + Send + Sync + 'static>;
@@ -241,7 +241,7 @@ impl NodeWalker {
         is_root: bool,
         walkdir_fn: WalkDirFn,
         opts: MultiGlobOptions,
-        yield_self: bool,
+        starting_node: bool,
     ) -> Self {
         if base == PathBuf::new() {
             base = ".".into();
@@ -259,7 +259,7 @@ impl NodeWalker {
                     .max_depth(max_depth)
                     .follow_root_links(is_root)
                     .into_iter();
-                NodeWalkerState::Walk { globset, walker }
+                NodeWalkerState::Walk { globset, walker, base_checked: !starting_node }
             }
         };
         Self {
@@ -269,7 +269,7 @@ impl NodeWalker {
             index_buf: Vec::new(),
             walkdir_fn,
             opts,
-            yield_self,
+            yield_self: starting_node && node.is_terminal,
         }
     }
 }
@@ -323,7 +323,16 @@ impl Iterator for NodeWalker {
                     entry = Some(DirEntry::from_meta(path, meta, follow));
                     self.index_buf.push(i);
                 }
-                NodeWalkerState::Walk { walker, globset } => {
+                NodeWalkerState::Walk { walker, globset, base_checked } => {
+                    debug!("base_checked={base_checked}");
+                    if !*base_checked {
+                        debug!("base not checked... checking {:?}", self.base);
+                        if !fs::exists(&self.base).unwrap_or(false) {
+                            debug!("not going to walk {:?}, doesn't exist", self.base);
+                            return None;
+                        }
+                        *base_checked = true;
+                    }
                     debug!("trying to walk...");
                     let walk_entry = itry!(walker.next()?);
                     debug!("walk entry candidate: {walk_entry:?}");
@@ -390,9 +399,7 @@ impl MultiGlobWalker {
         let node = WalkPlanNodeCompiled::new(&plan, skip_invalid)?;
         let opts = self.opts.clone();
         let walkdir_fn = Arc::new(move |walkdir| opts.configure_walkdir(walkdir));
-        let yield_self = node.is_terminal;
-        let walker =
-            NodeWalker::new(node, base, is_root, walkdir_fn, self.opts.clone(), yield_self);
+        let walker = NodeWalker::new(node, base, is_root, walkdir_fn, self.opts.clone(), true);
         self.stack.push(walker);
         Ok(())
     }
