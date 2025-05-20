@@ -434,7 +434,7 @@ mod tests {
         ]);
         let cnode = WalkPlanNodeCompiled::new(&node, false).unwrap();
         let mut settings = insta::Settings::clone_current();
-        settings.set_snapshot_path("src/tests/snapshots");
+        settings.set_snapshot_path("tests/snapshots");
         settings.bind(|| {
             assert_debug_snapshot!(node);
             assert_debug_snapshot!(cnode);
