@@ -76,10 +76,8 @@ impl MultiGlobBuilder {
             if base == mg_base {
                 base = mg_base.clone();
             }
-            let is_root = base == mg_base;
-            debug!("builder: base={base:?} self.base={:?} => is_root={is_root:?}", self.base);
-            debug!(base:?, patterns:?, is_root; "adding a glob group");
-            walker.add(base, is_root, patterns, skip_invalid)?;
+            debug!("add: base={base:?} self.base={:?} patterns={patterns:?}", self.base);
+            walker.add(base, patterns, skip_invalid)?;
         }
         Ok(walker.rev())
     }

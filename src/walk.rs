@@ -229,7 +229,6 @@ impl NodeWalker {
     pub fn new(
         node: WalkPlanNodeCompiled,
         base: PathBuf,
-        is_root: bool,
         walkdir_fn: WalkDirFn,
         opts: MultiGlobOptions,
         starting_node: bool,
@@ -245,7 +244,7 @@ impl NodeWalker {
                 debug!("creating new walker at {}, recursive={recursive}", base.display());
                 let walker = walkdir_fn(WalkDir::new(&base))
                     .max_depth(max_depth)
-                    .follow_root_links(is_root)
+                    .follow_root_links(starting_node)
                     .into_iter();
                 NodeWalkerState::Walk { globset, walker, base_checked: !starting_node }
             }
@@ -353,7 +352,6 @@ impl Iterator for NodeWalker {
                     out.nodes.push(NodeWalker::new(
                         dst.clone(),
                         path.clone(),
-                        false,
                         self.walkdir_fn.clone(),
                         self.opts.clone(),
                         false,
@@ -387,17 +385,15 @@ impl MultiGlobWalker {
     pub(crate) fn add(
         &mut self,
         base: PathBuf,
-        is_root: bool,
         patterns: Vec<String>,
         skip_invalid: bool,
     ) -> Result<(), GlobError> {
-        debug!(base:?, is_root, patterns:?; "MultiGlobWalker::add()");
         let plan = WalkPlanNode::build(&patterns);
         debug!(plan:?; "walk plan node");
         let node = WalkPlanNodeCompiled::new(&plan, skip_invalid)?;
         let opts = self.opts.clone();
         let walkdir_fn = Arc::new(move |walkdir| opts.configure_walkdir(walkdir));
-        let walker = NodeWalker::new(node, base, is_root, walkdir_fn, self.opts.clone(), true);
+        let walker = NodeWalker::new(node, base, walkdir_fn, self.opts.clone(), true);
         self.stack.push(walker);
         Ok(())
     }
