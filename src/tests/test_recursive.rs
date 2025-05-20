@@ -32,8 +32,8 @@ fn assert_ent_eq(a: &DirEntry, b: &DirEntry) {
 fn assert_mg_eq_wd(mg: MultiGlobWalker, wd: WalkDir) {
     let ents_mg = RecursiveResults::collect(mg);
     let ents_wd = RecursiveResults::collect(wd);
-    ents_mg.assert_no_errors("mg");
-    ents_wd.assert_no_errors("wd");
+    ents_mg.assert_no_errors();
+    ents_wd.assert_no_errors();
     assert_eq!(ents_mg.sorted_paths(), ents_wd.sorted_paths());
     for (mg, wd) in ents_mg.sorted_ents().into_iter().zip(ents_wd.sorted_ents()) {
         assert_ent_eq(&mg, &wd);

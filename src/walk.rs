@@ -230,6 +230,7 @@ struct NodeWalker {
     index_buf: Vec<usize>,
     walkdir_fn: WalkDirFn,
     opts: MultiGlobOptions,
+    yield_root: bool,
 }
 
 impl NodeWalker {
@@ -263,6 +264,7 @@ impl NodeWalker {
             index_buf: Vec::new(),
             walkdir_fn,
             opts,
+            yield_root: is_root && node.is_terminal,
         }
     }
 }
@@ -277,23 +279,40 @@ impl Iterator for NodeWalker {
 
             match &mut self.state {
                 NodeWalkerState::Path { paths, index } => {
-                    if *index >= paths.len() {
-                        return None;
-                    }
-                    let i = *index;
-                    *index += 1;
-                    let path = &paths[i];
-                    let Ok(mut meta) = fs::symlink_metadata(&path) else { continue };
+                    let (path, i) = if self.yield_root {
+                        self.yield_root = false;
+                        debug!("yield root: {}", self.base.display());
+                        (self.base.clone(), None)
+                    } else {
+                        if *index >= paths.len() {
+                            return None;
+                        }
+                        let i = *index;
+                        *index += 1;
+                        (paths[i].clone(), Some(i))
+                    };
+                    let Ok(mut meta) = fs::symlink_metadata(&path) else {
+                        debug!("fs::symlink_metadata error for {}, skip", path.display());
+                        continue;
+                    };
                     let follow = meta.is_symlink() && self.opts.follow_links;
                     if follow {
-                        if let Ok(m) = fs::metadata(path) {
+                        if let Ok(m) = fs::metadata(&path) {
                             meta = m;
                         } else {
+                            debug!("fs::metadata error for {}, skip", path.display());
                             continue;
                         }
                     }
-                    entry = Some(DirEntry::from_meta(path.to_path_buf(), meta, follow));
-                    self.index_buf.push(i);
+                    entry = Some(DirEntry::from_meta(path, meta, follow));
+                    if let Some(i) = i {
+                        self.index_buf.push(i);
+                    } else {
+                        return Some(Ok(NodeWalkerOutput {
+                            terminal: entry,
+                            ..Default::default()
+                        }));
+                    }
                 }
                 NodeWalkerState::Walk { walker, globset } => {
                     debug!("trying to walk...");
@@ -313,7 +332,6 @@ impl Iterator for NodeWalker {
 
             let path = entry.path().to_path_buf();
             let is_dir = entry.file_type().is_dir(); // will account for follow_links
-                                                     // let follow = entry.path_is_symlink();
 
             let mut entry = Some(entry);
             for &i in &self.index_buf {
@@ -331,6 +349,7 @@ impl Iterator for NodeWalker {
                     ));
                 }
             }
+            debug!("out.terminal={:?}", out.terminal);
             if out.terminal.is_some() || !out.nodes.is_empty() {
                 return Some(Ok(out));
             }
@@ -355,7 +374,9 @@ impl MultiGlobWalker {
         patterns: Vec<String>,
         skip_invalid: bool,
     ) -> Result<(), GlobError> {
+        debug!(base:?, is_root, patterns:?; "MultiGlobWalker::add()");
         let plan = WalkPlanNode::build(&patterns);
+        debug!(plan:?; "walk plan node");
         let node = WalkPlanNodeCompiled::new(&plan, skip_invalid)?;
         let opts = self.opts.clone();
         let walkdir_fn = Arc::new(move |walkdir| opts.configure_walkdir(walkdir));
