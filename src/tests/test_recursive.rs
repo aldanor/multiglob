@@ -60,7 +60,7 @@ fn test_double_star_at_root(
     let base = dir.path().join(base);
     assert_mg_eq_wd(
         MultiGlobBuilder::new(&base, ["**"]).follow_links(follow_links).build().unwrap(),
-        WalkDir::new(&base).follow_links(follow_links),
+        WalkDir::new(base).follow_links(follow_links),
     );
     Ok(())
 }
@@ -74,8 +74,8 @@ fn test_double_star_at_root_rel(
     let mut cwd = Cwd::mutex().lock().unwrap();
     cwd.set(dir.path().join("base/x/y")).unwrap();
     assert_mg_eq_wd(
-        MultiGlobBuilder::new(&base, ["**"]).follow_links(follow_links).build().unwrap(),
-        WalkDir::new(&base).follow_links(follow_links),
+        MultiGlobBuilder::new(base, ["**"]).follow_links(follow_links).build().unwrap(),
+        WalkDir::new(base).follow_links(follow_links),
     );
     Ok(())
 }
@@ -92,7 +92,7 @@ fn test_double_star_at_path(
             .follow_links(follow_links)
             .build()
             .unwrap(),
-        WalkDir::new(&base.join(path)).follow_links(follow_links),
+        WalkDir::new(base.join(path)).follow_links(follow_links),
     );
     Ok(())
 }
@@ -122,7 +122,7 @@ fn test_double_star_with_max_depth() -> Result<()> {
     let base = dir.path().join("base");
     assert_mg_eq_wd(
         MultiGlobBuilder::new(&base, ["x/**"]).follow_links(true).max_depth(2).build().unwrap(),
-        WalkDir::new(&base.join("x")).follow_links(true).max_depth(2),
+        WalkDir::new(base.join("x")).follow_links(true).max_depth(2),
     );
     Ok(())
 }

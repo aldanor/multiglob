@@ -19,12 +19,12 @@ use std::{
 /// are some differences however:
 ///
 /// * All recursive directory iterators must inspect the entry's type.
-/// Therefore, the value is stored and its access is guaranteed to be cheap and
-/// successful.
+///   Therefore, the value is stored and its access is guaranteed to be cheap and
+///   successful.
 /// * [`path`] and [`file_name`] return borrowed variants.
 /// * If [`follow_links`] was enabled in the builder, then all
-/// operations except for [`path`] operate on the link target. Otherwise, all
-/// operations operate on the symbolic link.
+///   operations except for [`path`] operate on the link target. Otherwise, all
+///   operations operate on the symbolic link.
 ///
 /// [`MultiGlobWalker`]: struct.MultiGlobWalker.html
 /// [`std::fs`]: https://doc.rust-lang.org/stable/std/fs/index.html
