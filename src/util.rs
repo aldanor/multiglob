@@ -1,5 +1,4 @@
-use std::io;
-use std::path::Path;
+use std::{io, path::Path};
 
 /// Check if a component of a path looks like it may be a glob pattern.
 ///

@@ -5,8 +5,9 @@ use walkdir::WalkDir;
 
 use crate::{cluster::cluster_globs, walk::MultiGlobWalker, GlobError};
 
-#[derive(Clone)]
-pub(crate) struct MultiGlobOptions {
+/// Internal structure for keeping all walkdir/globset options together to pass them around.
+#[derive(Clone, Copy, Debug)]
+pub struct MultiGlobOptions {
     pub follow_links: bool,
     pub max_depth: usize,
     pub max_open: usize,
@@ -37,7 +38,7 @@ impl MultiGlobOptions {
 }
 
 /// A builder to create an iterator over multiple globs from a given base path.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MultiGlobBuilder {
     base: PathBuf,
     patterns: Vec<String>,
@@ -89,6 +90,7 @@ impl MultiGlobBuilder {
 
     /// Construct a multiglob walker and skip all invalid globs patterns.
     pub fn build_skip_invalid(&self) -> MultiGlobWalker {
+        // TODO: we can also return a list of globs that failed along with globset errors.
         self.impl_build(true).unwrap()
     }
 
