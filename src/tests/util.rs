@@ -19,19 +19,25 @@ macro_rules! err {
 }
 
 pub fn windowsify(path: impl AsRef<str>) -> String {
+    let mut path = path.as_ref().to_owned();
     if cfg!(windows) {
-        path.as_ref().replace('/', "\\")
-    } else {
-        path.as_ref().to_owned()
+        if path.starts_with("/") {
+            path = path.replacen('/', "\\\\", 1);
+        }
+        path = path.replace('/', "\\");
     }
+    path
 }
 
 pub fn dewindowsify(path: impl AsRef<str>) -> String {
+    let mut path = path.as_ref().to_owned();
     if cfg!(windows) {
-        path.as_ref().replace('\\', "/")
-    } else {
-        path.as_ref().to_owned()
+        if path.starts_with("\\\\") {
+            path = path.replacen("\\\\", "/", 1);
+        }
+        path = path.replace('\\', "/");
     }
+    path
 }
 
 /// A convenient result type alias.
