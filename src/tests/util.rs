@@ -18,6 +18,22 @@ macro_rules! err {
     }
 }
 
+pub fn windowsify(path: impl AsRef<str>) -> String {
+    if cfg!(windows) {
+        path.as_ref().replace('/', "\\")
+    } else {
+        path.as_ref().to_owned()
+    }
+}
+
+pub fn dewindowsify(path: impl AsRef<str>) -> String {
+    if cfg!(windows) {
+        path.as_ref().replace('\\', "/")
+    } else {
+        path.as_ref().to_owned()
+    }
+}
+
 /// A convenient result type alias.
 pub type Result<T> = result::Result<T, Box<dyn error::Error + Send + Sync>>;
 

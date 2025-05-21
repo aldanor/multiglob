@@ -156,14 +156,7 @@ pub(crate) fn cluster_globs(patterns: &[impl AsRef<str>]) -> Vec<(PathBuf, Vec<S
 #[cfg(test)]
 mod tests {
     use super::{cluster_globs, split_glob, GlobParts};
-
-    fn windowsify(path: &str) -> String {
-        if cfg!(windows) {
-            path.replace('/', "\\")
-        } else {
-            path.to_owned()
-        }
-    }
+    use crate::tests::util::windowsify;
 
     #[test]
     fn test_split_glob() {

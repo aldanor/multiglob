@@ -1,6 +1,6 @@
 ---
 source: src/walk.rs
-expression: cnode
+expression: "dewindowsify(format!(\"{cnode:#?}\"))"
 ---
 Path {
     paths: [

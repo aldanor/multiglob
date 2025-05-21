@@ -1,6 +1,6 @@
 ---
 source: src/walk.rs
-expression: node
+expression: "dewindowsify(format!(\"{node:#?}\"))"
 ---
 Path {
     ..: Path {

@@ -425,7 +425,7 @@ impl Iterator for MultiGlobWalker {
 
 #[cfg(test)]
 mod tests {
-    use insta::assert_debug_snapshot;
+    use crate::tests::util::dewindowsify;
 
     use super::{WalkPlanNode, WalkPlanNodeCompiled};
 
@@ -449,8 +449,8 @@ mod tests {
         let mut settings = insta::Settings::clone_current();
         settings.set_snapshot_path("tests/snapshots");
         settings.bind(|| {
-            assert_debug_snapshot!(node);
-            assert_debug_snapshot!(cnode);
+            insta::assert_snapshot!(dewindowsify(format!("{node:#?}")));
+            insta::assert_snapshot!(dewindowsify(format!("{cnode:#?}")));
         });
     }
 }
