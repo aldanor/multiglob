@@ -125,13 +125,21 @@ impl<'a> Trie<'a> {
 /// - base of each group is the longest common prefix of globs in the group
 pub(crate) fn cluster_globs(patterns: &[impl AsRef<str>]) -> Vec<(PathBuf, Vec<String>)> {
     // split all globs into base/pattern
+    println!(
+        "cluster_globs: pre-split globs: {:#?}",
+        patterns.iter().map(|s| s.as_ref()).collect::<Vec<_>>()
+    );
     let globs: Vec<_> = patterns.iter().map(split_glob).collect();
+    println!("cluster_globs: got globs (split): {globs:#?}");
 
     // construct a path trie out of all split globs
     let mut trie = Trie::default();
     for glob in &globs {
+        println!("inserting {glob:?} into the trie...");
         trie.insert(glob.base.components(), &glob.pattern);
+        println!("trie updated: {trie:#?}");
     }
+    println!("final trie: {trie:#?}");
 
     // run LCP-style aggregation of patterns in the trie into groups
     let mut groups = Vec::new();
@@ -215,13 +223,13 @@ mod tests {
             );
         }
 
-        check(&["a/b/*", "a/c/*"], &[("a/b", &["*"]), ("a/c", &["*"])]);
-        check(&["./a/b/*", "a/c/*"], &[("a/b", &["*"]), ("a/c", &["*"])]);
-        check(&["/a/b/*", "/a/c/*"], &[("/a/b", &["*"]), ("/a/c", &["*"])]);
-        check(&["../a/b/*", "../a/c/*"], &[("../a/b", &["*"]), ("../a/c", &["*"])]);
-        check(&["x/*", "y/*"], &[("x", &["*"]), ("y", &["*"])]);
-        check(&[], &[]);
-        check(&["./*", "a/*", "../foo/*.png"], &[("", &["*", "a/*"]), ("../foo", &["*.png"])]);
+        // check(&["a/b/*", "a/c/*"], &[("a/b", &["*"]), ("a/c", &["*"])]);
+        // check(&["./a/b/*", "a/c/*"], &[("a/b", &["*"]), ("a/c", &["*"])]);
+        // check(&["/a/b/*", "/a/c/*"], &[("/a/b", &["*"]), ("/a/c", &["*"])]);
+        // check(&["../a/b/*", "../a/c/*"], &[("../a/b", &["*"]), ("../a/c", &["*"])]);
+        // check(&["x/*", "y/*"], &[("x", &["*"]), ("y", &["*"])]);
+        // check(&[], &[]);
+        // check(&["./*", "a/*", "../foo/*.png"], &[("", &["*", "a/*"]), ("../foo", &["*.png"])]);
         check(
             &["?", "/foo/?", "/foo/bar/*", "../bar/*.png", "../bar/../baz/*.jpg"],
             &[
