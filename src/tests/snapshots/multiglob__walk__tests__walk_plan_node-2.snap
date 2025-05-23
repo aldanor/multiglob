@@ -1,0 +1,108 @@
+---
+source: src/walk.rs
+expression: "dewindowsify(format!(\"{cnode:#?}\"))"
+---
+Path {
+    paths: [
+        "..",
+        "/",
+        "foo",
+        "x",
+    ],
+    destinations: [
+        Path {
+            paths: [
+                "..",
+                "x",
+            ],
+            destinations: [
+                Path {
+                    paths: [
+                        "a",
+                    ],
+                    destinations: [
+                        Terminal,
+                    ],
+                },
+                Glob {
+                    globset: "..",
+                    recursive: true,
+                    destinations: [
+                        Terminal,
+                        Terminal,
+                        Terminal,
+                        Terminal,
+                    ],
+                },
+            ],
+        },
+        Path {
+            paths: [
+                "home",
+                "var",
+            ],
+            destinations: [
+                Path {
+                    paths: [
+                        "user",
+                    ],
+                    destinations: [
+                        Terminal,
+                    ],
+                },
+                Path {
+                    paths: [
+                        "folders",
+                    ],
+                    destinations: [
+                        Glob[T] {
+                            globset: "..",
+                            recursive: false,
+                            destinations: [
+                                Terminal,
+                                Path {
+                                    paths: [
+                                        "2",
+                                    ],
+                                    destinations: [
+                                        Terminal,
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+        Path {
+            paths: [
+                "bar",
+            ],
+            destinations: [
+                Path[T] {
+                    paths: [
+                        "..",
+                    ],
+                    destinations: [
+                        Path {
+                            paths: [
+                                "z",
+                            ],
+                            destinations: [
+                                Terminal,
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+        Path {
+            paths: [
+                "y",
+            ],
+            destinations: [
+                Terminal,
+            ],
+        },
+    ],
+}

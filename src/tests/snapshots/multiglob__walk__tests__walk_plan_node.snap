@@ -1,0 +1,40 @@
+---
+source: src/walk.rs
+expression: "dewindowsify(format!(\"{node:#?}\"))"
+---
+Path {
+    ..: Path {
+        ..: Path {
+            a: Terminal,
+        },
+        x: Walk {
+            **: Terminal,
+            **/y: Terminal,
+            **/z/*: Terminal,
+            y: Terminal,
+        },
+    },
+    /: Path {
+        home: Path {
+            user: Terminal,
+        },
+        var: Path {
+            folders: Glob[T] {
+                *.doc: Terminal,
+                1: Path {
+                    2: Terminal,
+                },
+            },
+        },
+    },
+    foo: Path {
+        bar: Path[T] {
+            ..: Path {
+                z: Terminal,
+            },
+        },
+    },
+    x: Path {
+        y: Terminal,
+    },
+}
