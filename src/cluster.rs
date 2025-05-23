@@ -172,7 +172,12 @@ mod tests {
         fn check(input: &str, base: &str, pattern: &str) {
             let result = split_glob(input);
             let expected = GlobParts { base: base.into(), pattern: pattern.into() };
-            assert_eq!(result, expected, "{input:?} != {base:?} + {pattern:?}");
+            assert_eq!(result, expected, "(1): {input:?} != {base:?} + {pattern:?}");
+
+            let result = split_glob(windowsify(input));
+            let expected =
+                GlobParts { base: windowsify(&base).into(), pattern: windowsify(pattern).into() };
+            assert_eq!(result, expected, "(2): {input:?} != {base:?} + {pattern:?}");
         }
 
         check("", "", "");
