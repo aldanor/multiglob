@@ -59,7 +59,7 @@ fn split_glob(pattern: impl AsRef<str>) -> GlobParts {
 }
 
 /// Classic trie with edges being path components and values being glob patterns.
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct Trie<'a> {
     children: BTreeMap<Component<'a>, Trie<'a>>,
     patterns: Vec<&'a Path>,
