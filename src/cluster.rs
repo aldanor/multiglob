@@ -30,6 +30,11 @@ fn split_glob(pattern: impl AsRef<str>) -> GlobParts {
     let mut globbing = false;
     let mut last = None;
 
+    println!(
+        "split_glob: pattern = {pattern:?}, components = {:#?}",
+        pattern.components().collect::<Vec<_>>()
+    );
+
     for part in pattern.components() {
         if let Some(last) = last {
             if last != Component::CurDir {
