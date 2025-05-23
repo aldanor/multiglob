@@ -197,6 +197,8 @@ mod tests {
         check("*/*", "", "*/*");
         check("..", "..", "");
         check("/", "/", "");
+        check("/foo/?", "/foo", "?");
+        check("/foo/bar/*", "/foo/bar", "*");
     }
 
     #[test]
