@@ -22,6 +22,7 @@ fn assert_ent_eq(a: &DirEntry, b: &DirEntry) {
             d.file_type(),
             d.path_is_symlink(),
             md.as_ref().map(|md| md.file_type()),
+            #[cfg(not(windows))]
             md.as_ref().and_then(|md| md.modified().ok()),
         )
     };

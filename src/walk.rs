@@ -1,7 +1,7 @@
 use std::{
     collections::BTreeMap,
     fmt, fs, io, mem,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::Arc,
 };
 
@@ -30,10 +30,22 @@ impl WalkPlanNode {
     pub fn build(patterns: &[impl AsRef<str>]) -> Self {
         let mut root = Self::default();
         for pattern in patterns {
-            let parts: Vec<_> = Path::new(pattern.as_ref())
-                .components()
-                .map(|c| c.as_os_str().to_str().unwrap())
-                .collect();
+            let components: Vec<_> = Path::new(pattern.as_ref()).components().collect();
+            let mut components = &components[..];
+            let mut parts = Vec::new();
+            let mut prefix = PathBuf::new();
+            if components.len() >= 2
+                && matches!(&components[0], Component::Prefix(_))
+                && matches!(&components[1], Component::RootDir)
+            {
+                prefix.push(&components[0]);
+                prefix.push(Component::RootDir);
+                parts.push(prefix.as_os_str().to_str().unwrap());
+                components = &components[2..];
+            }
+            for component in components {
+                parts.push(component.as_os_str().to_str().unwrap());
+            }
             root.insert(&parts);
         }
         root.optimize();
@@ -425,12 +437,11 @@ impl Iterator for MultiGlobWalker {
 
 #[cfg(test)]
 mod tests {
-    use crate::tests::util::dewindowsify;
-
     use super::{WalkPlanNode, WalkPlanNodeCompiled};
 
     #[test]
-    fn test_walk_plan_node() {
+    #[cfg(not(windows))]
+    fn test_walk_plan_node_posix() {
         let node = WalkPlanNode::build(&[
             "foo/bar",
             "x/y",
@@ -448,9 +459,37 @@ mod tests {
         let cnode = WalkPlanNodeCompiled::new(&node, false).unwrap();
         let mut settings = insta::Settings::clone_current();
         settings.set_snapshot_path("tests/snapshots");
-        settings.bind(|| {
-            insta::assert_snapshot!(dewindowsify(format!("{node:#?}")));
-            insta::assert_snapshot!(dewindowsify(format!("{cnode:#?}")));
-        });
+        settings.set_snapshot_suffix("node");
+        settings.bind(|| insta::assert_snapshot!(&format!("{node:#?}")));
+        settings.set_snapshot_suffix("cnode");
+        settings.bind(|| insta::assert_snapshot!(&format!("{cnode:#?}")));
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_walk_plan_node_win() {
+        let node = WalkPlanNode::build(&[
+            r"foo/bar",
+            r"x/y",
+            r"foo\bar/../z",
+            r"../../a",
+            r"..\x/y",
+            r"../x/**/y",
+            r"../x/**/z/*",
+            r"../x/**",
+            r"\var/folders/",
+            r"/var/folders/1/2",
+            r"C:\var/folders/*.doc",
+            r"C:\var/folders/secret\*.txt",
+            r"\\unc\share\foo\*\*",
+            r"\\unc\share\foo\[ab].txt",
+        ]);
+        let cnode = WalkPlanNodeCompiled::new(&node, false).unwrap();
+        let mut settings = insta::Settings::clone_current();
+        settings.set_snapshot_path("tests/snapshots");
+        settings.set_snapshot_suffix("node");
+        settings.bind(|| insta::assert_snapshot!(&format!("{node:#?}")));
+        settings.set_snapshot_suffix("cnode");
+        settings.bind(|| insta::assert_snapshot!(&format!("{cnode:#?}")));
     }
 }

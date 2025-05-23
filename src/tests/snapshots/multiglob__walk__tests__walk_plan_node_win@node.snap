@@ -1,6 +1,6 @@
 ---
 source: src/walk.rs
-expression: "dewindowsify(format!(\"{node:#?}\"))"
+expression: "&format!(\"{node:#?}\")"
 ---
 Path {
     ..: Path {
@@ -9,22 +9,36 @@ Path {
         },
         x: Walk {
             **: Terminal,
-            **/y: Terminal,
-            **/z/*: Terminal,
+            **\y: Terminal,
+            **\z\*: Terminal,
             y: Terminal,
         },
     },
-    /: Path {
-        home: Path {
-            user: Terminal,
-        },
+    C:\: Path {
         var: Path {
-            folders: Glob[T] {
+            folders: Glob {
                 *.doc: Terminal,
+                secret: Glob {
+                    *.txt: Terminal,
+                },
+            },
+        },
+    },
+    \: Path {
+        var: Path {
+            folders: Path[T] {
                 1: Path {
                     2: Terminal,
                 },
             },
+        },
+    },
+    \\unc\share\: Path {
+        foo: Glob {
+            *: Glob {
+                *: Terminal,
+            },
+            [ab].txt: Terminal,
         },
     },
     foo: Path {

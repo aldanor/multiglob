@@ -1,11 +1,13 @@
 ---
 source: src/walk.rs
-expression: "dewindowsify(format!(\"{cnode:#?}\"))"
+expression: "&format!(\"{cnode:#?}\")"
 ---
 Path {
     paths: [
         "..",
-        "/",
+        "C:\\",
+        "\\",
+        "\\\\unc\\share\\",
         "foo",
         "x",
     ],
@@ -38,28 +40,47 @@ Path {
         },
         Path {
             paths: [
-                "home",
                 "var",
             ],
             destinations: [
                 Path {
                     paths: [
-                        "user",
+                        "folders",
                     ],
                     destinations: [
-                        Terminal,
+                        Glob {
+                            globset: "..",
+                            recursive: false,
+                            destinations: [
+                                Terminal,
+                                Glob {
+                                    globset: "..",
+                                    recursive: false,
+                                    destinations: [
+                                        Terminal,
+                                    ],
+                                },
+                            ],
+                        },
                     ],
                 },
+            ],
+        },
+        Path {
+            paths: [
+                "var",
+            ],
+            destinations: [
                 Path {
                     paths: [
                         "folders",
                     ],
                     destinations: [
-                        Glob[T] {
-                            globset: "..",
-                            recursive: false,
+                        Path[T] {
+                            paths: [
+                                "1",
+                            ],
                             destinations: [
-                                Terminal,
                                 Path {
                                     paths: [
                                         "2",
@@ -70,6 +91,27 @@ Path {
                                 },
                             ],
                         },
+                    ],
+                },
+            ],
+        },
+        Path {
+            paths: [
+                "foo",
+            ],
+            destinations: [
+                Glob {
+                    globset: "..",
+                    recursive: false,
+                    destinations: [
+                        Glob {
+                            globset: "..",
+                            recursive: false,
+                            destinations: [
+                                Terminal,
+                            ],
+                        },
+                        Terminal,
                     ],
                 },
             ],

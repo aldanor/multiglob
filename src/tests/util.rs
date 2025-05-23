@@ -19,10 +19,11 @@ macro_rules! err {
 }
 
 pub fn windowsify(path: impl AsRef<str>) -> String {
+    // only works for paths strings themselves (i.e. not strings containing paths)
     let mut path = path.as_ref().to_owned();
     if cfg!(windows) {
         if path.starts_with("/") {
-            path = path.replacen('/', "\\\\", 1);
+            path = path.replacen('/', "C:\\", 1);
         }
         path = path.replace('/', "\\");
     }
@@ -30,12 +31,10 @@ pub fn windowsify(path: impl AsRef<str>) -> String {
 }
 
 pub fn dewindowsify(path: impl AsRef<str>) -> String {
+    // also works for strings containing paths
     let mut path = path.as_ref().to_owned();
     if cfg!(windows) {
-        if path.starts_with("\\\\") {
-            path = path.replacen("\\\\", "/", 1);
-        }
-        path = path.replace('\\', "/");
+        path = path.replace("C:\\", "/").replace('\\', "/");
     }
     path
 }

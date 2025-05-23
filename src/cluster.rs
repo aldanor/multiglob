@@ -17,7 +17,7 @@ pub fn is_glob_like(part: Component) -> bool {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-struct GlobParts {
+pub struct GlobParts {
     base: PathBuf,
     pattern: PathBuf,
 }
@@ -29,6 +29,11 @@ fn split_glob(pattern: impl AsRef<str>) -> GlobParts {
     let mut glob = GlobParts::default();
     let mut globbing = false;
     let mut last = None;
+
+    println!(
+        "split_glob: pattern = {pattern:?}, components = {:#?}",
+        pattern.components().collect::<Vec<_>>()
+    );
 
     for part in pattern.components() {
         if let Some(last) = last {
@@ -124,14 +129,23 @@ impl<'a> Trie<'a> {
 /// - each directory would only be walked at most once
 /// - base of each group is the longest common prefix of globs in the group
 pub(crate) fn cluster_globs(patterns: &[impl AsRef<str>]) -> Vec<(PathBuf, Vec<String>)> {
+    // pub(crate) fn cluster_globs(patterns: &[impl AsRef<str>]) -> Vec<(PathBuf, Vec<String>)> {
     // split all globs into base/pattern
+    println!(
+        "cluster_globs: pre-split globs: {:#?}",
+        patterns.iter().map(|s| s.as_ref()).collect::<Vec<_>>()
+    );
     let globs: Vec<_> = patterns.iter().map(split_glob).collect();
+    println!("cluster_globs: got globs (split): {globs:#?}");
 
     // construct a path trie out of all split globs
     let mut trie = Trie::default();
     for glob in &globs {
+        println!("inserting {glob:?} into the trie...");
         trie.insert(glob.base.components(), &glob.pattern);
+        println!("trie updated: {trie:#?}");
     }
+    println!("final trie: {trie:#?}");
 
     // run LCP-style aggregation of patterns in the trie into groups
     let mut groups = Vec::new();
@@ -161,29 +175,53 @@ mod tests {
     #[test]
     fn test_split_glob() {
         #[track_caller]
-        fn check(input: &str, base: &str, pattern: &str) {
+        fn check(input: &str, base: &str, pattern: &str, both: bool) {
             let result = split_glob(input);
             let expected = GlobParts { base: base.into(), pattern: pattern.into() };
-            assert_eq!(result, expected, "{input:?} != {base:?} + {pattern:?}");
+            assert_eq!(result, expected, "(1): {input:?} != {base:?} + {pattern:?}");
+
+            if both {
+                let result = split_glob(windowsify(input));
+                let expected = GlobParts {
+                    base: windowsify(&base).into(),
+                    pattern: windowsify(pattern).into(),
+                };
+                assert_eq!(result, expected, "(2): {input:?} != {base:?} + {pattern:?}");
+            }
         }
 
-        check("", "", "");
-        check("a", "", "a");
-        check("a/b", "a", "b");
-        check("a/b/", "a", "b");
-        check("a/.//b/", "a", "b");
-        check("./a/b/c", "a/b", "c");
-        check("c/d/*", "c/d", "*");
-        check("c/d/*/../*", "c/d", "*/../*");
-        check("a/?b/c", "a", "?b/c");
-        check("/a/b/*", "/a/b", "*");
-        check("../x/*", "../x", "*");
-        check("a/{b,c}/d", "a", "{b,c}/d");
-        check("a/[bc]/d", "a", "[bc]/d");
-        check("*", "", "*");
-        check("*/*", "", "*/*");
-        check("..", "..", "");
-        check("/", "/", "");
+        check("", "", "", true);
+        check("a", "", "a", true);
+        check("a/b", "a", "b", true);
+        check("a/b/", "a", "b", true);
+        check("a/.//b/", "a", "b", true);
+        check("./a/b/c", "a/b", "c", true);
+        check("c/d/*", "c/d", "*", true);
+        check("c/d/*/../*", "c/d", "*/../*", true);
+        check("a/?b/c", "a", "?b/c", true);
+        check("/a/b/*", "/a/b", "*", true);
+        check("../x/*", "../x", "*", true);
+        check("a/{b,c}/d", "a", "{b,c}/d", true);
+        check("a/[bc]/d", "a", "[bc]/d", true);
+        check("*", "", "*", true);
+        check("*/*", "", "*/*", true);
+        check("..", "..", "", true);
+        check("/", "/", "", true);
+        check("/foo/?", "/foo", "?", true);
+        check("/foo/bar/*", "/foo/bar", "*", true);
+
+        if cfg!(windows) {
+            check(r"C:\a/b\c", r"C:\a\b", r"c", false);
+            check(r"C:\a/b\c/*\d/e", r"C:\a\b\c", r"*\d\e", false);
+            check(r"C:\*", r"C:\", r"*", false);
+            check(r"\\a\b\c\d", r"\\a\b\c", r"d", false);
+            check(r"\\a\b\c/*\d/e", r"\\a\b\c", r"*\d\e", false);
+            check(r"\\a\b\*", r"\\a\b", r"*", false);
+            check(r"/a\b\c", r"\a\b", r"c", false);
+            check(r"/a\b/c\*/d\e", r"\a\b\c", r"*\d\e", false);
+            check(r"/a/*", r"\a", r"*", false);
+            check(r"./a/*", r"a", r"*", false);
+        }
     }
 
     #[test]
