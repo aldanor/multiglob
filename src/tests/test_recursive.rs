@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use current_dir::Cwd;
+use pretty_assertions::assert_eq;
 use rstest::rstest;
 use walkdir::WalkDir;
 

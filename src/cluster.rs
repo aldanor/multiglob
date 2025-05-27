@@ -169,7 +169,10 @@ pub(crate) fn cluster_globs(patterns: &[impl AsRef<str>]) -> Vec<(PathBuf, Vec<S
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use super::{cluster_globs, split_glob, GlobParts};
+
     use crate::tests::util::windowsify;
 
     #[test]

@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use current_dir::Cwd;
 use log::debug;
+use pretty_assertions::assert_eq;
 
 use crate::MultiGlobBuilder;
 
