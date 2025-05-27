@@ -70,19 +70,6 @@ impl RecursiveResults {
         assert!(self.errs.is_empty(), "expected to find no errors, but found: {:?}", self.errs);
     }
 
-    /// Return all the successfully retrieved directory entries in the order
-    /// in which they were retrieved.
-    pub fn ents(&self) -> &[DirEntry] {
-        &self.ents
-    }
-
-    /// Return all paths from all successfully retrieved directory entries.
-    ///
-    /// This does not include paths that correspond to an error.
-    pub fn paths(&self) -> Vec<PathBuf> {
-        self.ents.iter().map(|d| d.path().to_path_buf()).collect()
-    }
-
     /// Return all the successfully retrieved directory entries, sorted
     /// lexicographically by their full file path.
     pub fn sorted_ents(&self) -> Vec<DirEntry> {
@@ -142,14 +129,6 @@ impl Dir {
         File::create(&full)
             .map_err(|e| err!("failed to create file {}: {}", full.display(), e))
             .unwrap();
-    }
-
-    /// Create empty files at the given paths. All ancestor directories must
-    /// already exists.
-    pub fn touch_all<P: AsRef<Path>>(&self, paths: &[P]) {
-        for p in paths {
-            self.touch(p);
-        }
     }
 
     /// Create a file symlink to the given src with the given link name.
