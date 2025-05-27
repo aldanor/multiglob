@@ -14,6 +14,7 @@ pub struct MultiGlobOptions {
     pub max_open: usize,
     pub same_file_system: bool,
     pub case_insensitive: bool,
+    pub canonicalize: bool,
 }
 
 impl Default for MultiGlobOptions {
@@ -24,6 +25,7 @@ impl Default for MultiGlobOptions {
             max_open: 10,
             same_file_system: false,
             case_insensitive: false,
+            canonicalize: false,
         }
     }
 }
@@ -197,6 +199,23 @@ impl MultiGlobBuilder {
     /// directories that are on a different file system from the base path.
     pub fn same_file_system(mut self, yes: bool) -> Self {
         self.opts.same_file_system = yes;
+        self
+    }
+
+    /// Canonicalize paths via [`std::fs::canonicalize`] (and deduplicate by canonicalized paths).
+    ///
+    /// Without this option, the walker will not be able to tell apart "a/b" and "a/../a/b"
+    /// and will always return both (however, it will still deduplicate non-canonicalized paths).
+    ///
+    /// Notes:
+    /// - This is not free resource-wise as it retrieves entry metadata and resolves links.
+    /// - If this option is enabled and entry path cannot be canonicalized, error is returned.
+    /// - Resulting [`DirEntry`] objects will contain canonicalized paths along with resolved metadata.
+    ///
+    /// [`std::fs::canonicalize`]: https://doc.rust-lang.org/std/fs/fn.metadata.html
+    /// [`DirEntry`]: struct.DirEntry.html
+    pub fn canonicalize(mut self) -> Self {
+        self.opts.canonicalize = true;
         self
     }
 }

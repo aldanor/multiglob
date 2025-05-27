@@ -33,7 +33,10 @@ use std::{
 /// [`follow_links`]: struct.WalkDir.html#method.follow_links
 /// [`DirEntryExt`]: trait.DirEntryExt.html
 #[derive(Clone)]
-pub struct DirEntry(DirEntryInner);
+pub struct DirEntry {
+    inner: DirEntryInner,
+    canonicalized: Option<PathBuf>,
+}
 
 #[derive(Clone)]
 enum DirEntryInner {
@@ -106,7 +109,7 @@ impl DirEntry {
     /// [`MultiGlobBuilder::new`]: struct.MultiGlobBuilder.html#method.new
     /// [`std::fs::read_link`]: https://doc.rust-lang.org/stable/std/fs/fn.read_link.html
     pub fn path(&self) -> &Path {
-        match &self.0 {
+        match &self.inner {
             DirEntryInner::Path(e) => &e.path,
             DirEntryInner::Walk(e) => e.path(),
         }
@@ -118,7 +121,7 @@ impl DirEntry {
     ///
     /// [`path`]: struct.DirEntry.html#method.path
     pub fn into_path(self) -> PathBuf {
-        match self.0 {
+        match self.inner {
             DirEntryInner::Path(e) => e.path,
             DirEntryInner::Walk(e) => e.into_path(),
         }
@@ -135,7 +138,7 @@ impl DirEntry {
     /// [`follow_links`]: struct.MultiGlobBuilder.html#method.follow_links
     /// [`std::fs::read_link(entry.path())`]: https://doc.rust-lang.org/stable/std/fs/fn.read_link.html
     pub fn path_is_symlink(&self) -> bool {
-        match &self.0 {
+        match &self.inner {
             DirEntryInner::Path(e) => e.ty.is_symlink() || e.follow_link,
             DirEntryInner::Walk(e) => e.path_is_symlink(),
         }
@@ -164,7 +167,7 @@ impl DirEntry {
     /// [`std::fs::metadata`]: https://doc.rust-lang.org/std/fs/fn.metadata.html
     /// [`std::fs::symlink_metadata`]: https://doc.rust-lang.org/stable/std/fs/fn.symlink_metadata.html
     pub fn metadata(&self) -> io::Result<fs::Metadata> {
-        Ok(match &self.0 {
+        Ok(match &self.inner {
             DirEntryInner::Path(e) => e.metadata()?,
             DirEntryInner::Walk(e) => e.metadata()?,
         })
@@ -179,7 +182,7 @@ impl DirEntry {
     ///
     /// [`follow_links`]: struct.MultiGlobBuilder.html#method.follow_links
     pub fn file_type(&self) -> fs::FileType {
-        match &self.0 {
+        match &self.inner {
             DirEntryInner::Path(e) => e.ty,
             DirEntryInner::Walk(e) => e.file_type(),
         }
@@ -194,18 +197,41 @@ impl DirEntry {
         path.file_name().unwrap_or(path.as_os_str())
     }
 
+    /// Return canonicalized version of the path, resolving all symlinks.
+    ///
+    /// This operation does query file metadata and resolves symlinks so it is
+    /// not free and may fail, unless the glob walker was initialized with
+    /// ['canonicalize'] option -- in which case it is free and will never fail.
+    ///
+    /// [`canonicalize`]: struct.MultiGlobBuilder.html#method.canonicalize
+    /// [`std::fs::metadata`]: https://doc.rust-lang.org/std/fs/fn.metadata.html
+    pub fn canonicalized(&self) -> io::Result<PathBuf> {
+        match self.canonicalized {
+            Some(ref path) => Ok(path.clone()),
+            None => fs::canonicalize(self.path()),
+        }
+    }
+
     pub(crate) fn from_meta(path: PathBuf, metadata: fs::Metadata, follow: bool) -> Self {
-        Self(DirEntryInner::Path(DirEntryPath::from_meta(path, metadata, follow)))
+        Self {
+            inner: DirEntryInner::Path(DirEntryPath::from_meta(path, metadata, follow)),
+            canonicalized: None,
+        }
     }
 
     pub(crate) fn from_walk(entry: walkdir::DirEntry) -> Self {
-        Self(DirEntryInner::Walk(entry))
+        Self { inner: DirEntryInner::Walk(entry), canonicalized: None }
+    }
+
+    pub(crate) fn into_canonicalized(self) -> io::Result<Self> {
+        let path = fs::canonicalize(self.path())?;
+        Ok(Self { canonicalized: Some(path), ..self })
     }
 }
 
 impl From<walkdir::DirEntry> for DirEntry {
     fn from(entry: walkdir::DirEntry) -> Self {
-        Self(DirEntryInner::Walk(entry))
+        Self { inner: DirEntryInner::Walk(entry), canonicalized: None }
     }
 }
 

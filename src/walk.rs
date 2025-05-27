@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     fmt, fs, io, mem,
     path::{Component, Path, PathBuf},
     sync::Arc,
@@ -405,11 +405,12 @@ pub struct MultiGlobWalker {
     opts: MultiGlobOptions,
     stack: Vec<NodeWalker>,
     root_device: Option<Option<u64>>,
+    returned: HashSet<PathBuf>,
 }
 
 impl MultiGlobWalker {
     pub(crate) fn new(root: PathBuf, opts: MultiGlobOptions) -> Self {
-        Self { root, opts, stack: Vec::new(), root_device: None }
+        Self { root, opts, stack: Vec::new(), root_device: None, returned: HashSet::new() }
     }
 
     pub(crate) fn add(
@@ -460,7 +461,19 @@ impl Iterator for MultiGlobWalker {
                 Some(Err(err)) => return Some(Err(err)),
                 Some(Ok(mut res)) => {
                     self.stack.append(&mut res.nodes);
-                    if let Some(terminal) = res.terminal {
+                    if let Some(mut terminal) = res.terminal {
+                        let path = if self.opts.canonicalize {
+                            terminal = match terminal.into_canonicalized() {
+                                Err(err) => return Some(Err(err)),
+                                Ok(entry) => entry,
+                            };
+                            terminal.canonicalized().unwrap()
+                        } else {
+                            terminal.path().to_owned()
+                        };
+                        if !self.returned.insert(path) {
+                            continue;
+                        }
                         return Some(Ok(terminal));
                     }
                 }
