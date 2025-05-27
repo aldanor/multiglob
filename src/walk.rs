@@ -48,7 +48,7 @@ impl WalkPlanNode {
             }
             root.insert(&parts);
         }
-        root.optimize();
+        // root.optimize();
         root
     }
 
@@ -95,31 +95,31 @@ impl WalkPlanNode {
         }
     }
 
-    pub fn optimize(&mut self) {
-        // squash pure-path component trees into pure-path nodes with multi-part paths
-        // note: this code would only makes sense if we always resolved all symlinks for path components
-
-        // for v in self.patterns.values_mut() {
-        //     v.optimize();
-        // }
-        // if self.node_type != WalkNodeType::Path {
-        //     return;
-        // }
-        // let mut patterns = BTreeMap::new();
-        // for (k, mut v) in mem::take(&mut self.patterns) {
-        //     if v.node_type == WalkNodeType::Path {
-        //         if v.is_terminal {
-        //             patterns.insert(k.clone(), Self::terminal());
-        //         }
-        //         for (pk, pv) in mem::take(&mut v.patterns) {
-        //             patterns.insert(Path::new(&k).join(&pk).to_str().unwrap().to_owned(), pv);
-        //         }
-        //     } else {
-        //         patterns.insert(k, v);
-        //     }
-        // }
-        // self.patterns = patterns;
-    }
+    // pub fn optimize(&mut self) {
+    //     // squash pure-path component trees into pure-path nodes with multi-part paths
+    //     // note: this code would only make sense if we always resolved all symlinks for path components
+    //
+    //     for v in self.patterns.values_mut() {
+    //         v.optimize();
+    //     }
+    //     if self.node_type != WalkNodeType::Path {
+    //         return;
+    //     }
+    //     let mut patterns = BTreeMap::new();
+    //     for (k, mut v) in mem::take(&mut self.patterns) {
+    //         if v.node_type == WalkNodeType::Path {
+    //             if v.is_terminal {
+    //                 patterns.insert(k.clone(), Self::terminal());
+    //             }
+    //             for (pk, pv) in mem::take(&mut v.patterns) {
+    //                 patterns.insert(Path::new(&k).join(&pk).to_str().unwrap().to_owned(), pv);
+    //             }
+    //         } else {
+    //             patterns.insert(k, v);
+    //         }
+    //     }
+    //     self.patterns = patterns;
+    // }
 }
 
 impl fmt::Debug for WalkPlanNode {
