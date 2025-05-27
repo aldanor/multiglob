@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use globset::Glob;
 use log::debug;
 use walkdir::WalkDir;
 
@@ -63,10 +64,35 @@ impl MultiGlobBuilder {
         }
     }
 
-    fn impl_build(&self, skip_invalid: bool) -> Result<MultiGlobWalker, GlobError> {
+    /// Construct a multiglob walker; error that may occur when parsing globs will be propagated.
+    pub fn build(&self) -> Result<MultiGlobWalker, GlobError> {
+        let (walker, mut errors) = self.build_skip_invalid();
+        if !errors.is_empty() {
+            Err(errors.remove(0))
+        } else {
+            Ok(walker)
+        }
+    }
+
+    /// Construct a multiglob walker and skip all invalid globs patterns.
+    ///
+    /// Returns list of all glob errors encountered as the second element of the tuple.
+    /// Note: invalid glob patterns reported in errors will not be the original patterns
+    pub fn build_skip_invalid(&self) -> (MultiGlobWalker, Vec<GlobError>) {
         debug!("-------------");
+        let mut patterns = self.patterns.clone();
+        let mut errors = Vec::new();
+        patterns.retain(|p| {
+            // do this early to try and retain original glob patterns in reported errors
+            if let Some(err) = Glob::new(p).err() {
+                errors.push(err);
+                false
+            } else {
+                true
+            }
+        });
         let mut walker = MultiGlobWalker::new(self.base.clone(), self.opts);
-        let glob_groups = cluster_globs(&self.patterns);
+        let glob_groups = cluster_globs(&patterns);
         debug!("glob groups: {glob_groups:?}");
         let mut mg_base = self.base.clone();
         if mg_base == PathBuf::new() {
@@ -78,20 +104,9 @@ impl MultiGlobBuilder {
                 base = mg_base.clone();
             }
             debug!("add: base={base:?} self.base={:?} patterns={patterns:?}", self.base);
-            walker.add(base, patterns, skip_invalid)?;
+            walker.add(base, patterns, &mut errors);
         }
-        Ok(walker.rev())
-    }
-
-    /// Construct a multiglob walker; error may occur when parsing globs.
-    pub fn build(&self) -> Result<MultiGlobWalker, GlobError> {
-        self.impl_build(false)
-    }
-
-    /// Construct a multiglob walker and skip all invalid globs patterns.
-    pub fn build_skip_invalid(&self) -> MultiGlobWalker {
-        // TODO: we can also return a list of globs that failed along with globset errors.
-        self.impl_build(true).unwrap()
+        (walker.rev(), errors)
     }
 
     /// Toggle whether the globs should be matched case insensitively or not.

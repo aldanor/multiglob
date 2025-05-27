@@ -156,12 +156,7 @@ struct WalkPlanNodeCompiled {
 }
 
 impl WalkPlanNodeCompiled {
-    pub fn new(
-        node: &WalkPlanNode,
-        case_insensitive: bool,
-        skip_invalid: bool,
-    ) -> Result<Self, GlobError> {
-        // TODO: when skip_invalid is enabled, it could return a list of globs that failed and errors
+    pub fn new(node: &WalkPlanNode, case_insensitive: bool, errors: &mut Vec<GlobError>) -> Self {
         let mut destinations = Vec::new();
         let matcher = if node.node_type == WalkNodeType::Path {
             destinations.extend(node.patterns.values().cloned());
@@ -171,28 +166,28 @@ impl WalkPlanNodeCompiled {
             for (k, v) in &node.patterns {
                 let glob = match GlobBuilder::new(k).case_insensitive(case_insensitive).build() {
                     Ok(glob) => glob,
-                    Err(_) if skip_invalid => continue,
-                    Err(err) => return Err(err),
+                    Err(err) => {
+                        errors.push(err);
+                        continue;
+                    }
                 };
                 globset.add(glob);
                 destinations.push(v.clone());
             }
             let globset = match globset.build() {
                 Ok(globset) => globset,
-                Err(_) if skip_invalid => {
+                Err(err) => {
+                    errors.push(err);
                     destinations.clear();
                     GlobSet::empty()
                 }
-                Err(err) => return Err(err),
             };
             let recursive = node.node_type == WalkNodeType::Walk;
             WalkNodeMatcher::Walk { globset, recursive }
         };
-        let destinations = destinations
-            .iter()
-            .map(|d| Self::new(d, case_insensitive, skip_invalid))
-            .collect::<Result<_, _>>()?;
-        Ok(Self { matcher, is_terminal: node.is_terminal, destinations })
+        let destinations =
+            destinations.iter().map(|d| Self::new(d, case_insensitive, errors)).collect();
+        Self { matcher, is_terminal: node.is_terminal, destinations }
     }
 }
 
@@ -421,16 +416,15 @@ impl MultiGlobWalker {
         &mut self,
         base: PathBuf,
         patterns: Vec<String>,
-        skip_invalid: bool,
-    ) -> Result<(), GlobError> {
+        errors: &mut Vec<GlobError>,
+    ) {
         let plan = WalkPlanNode::build(&patterns);
         debug!(plan:?; "walk plan node");
-        let node = WalkPlanNodeCompiled::new(&plan, self.opts.case_insensitive, skip_invalid)?;
+        let node = WalkPlanNodeCompiled::new(&plan, self.opts.case_insensitive, errors);
         let opts = self.opts;
         let walkdir_fn = Arc::new(move |walkdir| opts.configure_walkdir(walkdir));
         let walker = NodeWalker::new(node, base, walkdir_fn, self.opts, true, None);
         self.stack.push(walker);
-        Ok(())
     }
 
     pub(crate) fn rev(self) -> Self {
@@ -497,7 +491,9 @@ mod tests {
             "/var/folders/*.doc",
             "/home/user",
         ]);
-        let cnode = WalkPlanNodeCompiled::new(&node, false, false).unwrap();
+        let mut errors = Vec::new();
+        let cnode = WalkPlanNodeCompiled::new(&node, false, &mut errors);
+        assert!(errors.is_empty());
         let mut settings = insta::Settings::clone_current();
         settings.set_snapshot_path("tests/snapshots");
         settings.set_snapshot_suffix("node");
@@ -525,7 +521,9 @@ mod tests {
             r"\\unc\share\foo\*\*",
             r"\\unc\share\foo\[ab].txt",
         ]);
-        let cnode = WalkPlanNodeCompiled::new(&node, false, false).unwrap();
+        let mut errors = Vec::new();
+        let cnode = WalkPlanNodeCompiled::new(&node, false, &mut errors);
+        assert!(errors.is_empty());
         let mut settings = insta::Settings::clone_current();
         settings.set_snapshot_path("tests/snapshots");
         settings.set_snapshot_suffix("node");
