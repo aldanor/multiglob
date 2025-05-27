@@ -220,7 +220,7 @@ impl fmt::Debug for WalkPlanNodeCompiled {
 
 enum NodeWalkerState {
     Path { paths: Vec<PathBuf>, index: usize },
-    Walk { globset: GlobSet, walker: walkdir::IntoIter, base_checked: bool },
+    Walk { globset: GlobSet, walker: walkdir::IntoIter, base_checked: bool, recursive: bool },
 }
 
 type WalkDirFn = Arc<dyn Fn(WalkDir) -> WalkDir + Send + Sync + 'static>;
@@ -264,7 +264,7 @@ impl NodeWalker {
                     .max_depth(max_depth)
                     .follow_root_links(starting_node)
                     .into_iter();
-                NodeWalkerState::Walk { globset, walker, base_checked: !starting_node }
+                NodeWalkerState::Walk { globset, walker, base_checked: !starting_node, recursive }
             }
         };
         Self {
@@ -329,7 +329,7 @@ impl Iterator for NodeWalker {
                     entry = Some(DirEntry::from_meta(path, meta, follow));
                     self.index_buf.push(i);
                 }
-                NodeWalkerState::Walk { walker, globset, base_checked } => {
+                NodeWalkerState::Walk { walker, globset, base_checked, recursive } => {
                     debug!("base_checked={base_checked}");
                     if !*base_checked {
                         // if we don't do this before kicking off walkdir iteration, it will yield an error
@@ -346,10 +346,14 @@ impl Iterator for NodeWalker {
                         Err(err) => return Some(Err(err.into())),
                     };
                     debug!("walk entry candidate: {walk_entry:?}");
-                    if let Ok(path) = walk_entry.path().strip_prefix(&self.base) {
-                        globset.matches_into(path, &mut self.index_buf);
-                        if !self.index_buf.is_empty() {
-                            entry = Some(DirEntry::from_walk(walk_entry));
+
+                    if walk_entry.path() != &self.base || *recursive {
+                        // we check base equality because if we kick off a glob like base/*, base will match *
+                        if let Ok(path) = walk_entry.path().strip_prefix(&self.base) {
+                            globset.matches_into(path, &mut self.index_buf);
+                            if !self.index_buf.is_empty() {
+                                entry = Some(DirEntry::from_walk(walk_entry));
+                            }
                         }
                     }
                 }

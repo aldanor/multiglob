@@ -182,3 +182,20 @@ fn test_walk_loop() {
         ]
     );
 }
+
+#[test]
+fn test_glob_parent_dir() {
+    let dir = Dir::tmp();
+    dir.mkdirp("a/b");
+    dir.mkdirp("a/c");
+    let p = dir.path();
+
+    let res = mg_collect_no_err(p, ["*"]);
+    assert_eq!(res.sorted_paths(), vec![p.join("a")]);
+    let res = mg_collect_no_err(p.join("a"), ["*"]);
+    assert_eq!(res.sorted_paths(), vec![p.join("a/b"), p.join("a/c")]);
+    let res = mg_collect_no_err(p.join("a"), ["*", "."]);
+    assert_eq!(res.sorted_paths(), vec![p.join("a"), p.join("a/b"), p.join("a/c")]);
+    let res = mg_collect_no_err(p.join("a"), ["*", "**"]);
+    assert_eq!(res.sorted_paths(), vec![p.join("a"), p.join("a/b"), p.join("a/c")]);
+}
