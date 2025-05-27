@@ -212,7 +212,7 @@ impl MultiGlobBuilder {
     /// - If this option is enabled and entry path cannot be canonicalized, error is returned.
     /// - Resulting [`DirEntry`] objects will contain canonicalized paths along with resolved metadata.
     ///
-    /// [`std::fs::canonicalize`]: https://doc.rust-lang.org/std/fs/fn.metadata.html
+    /// [`std::fs::canonicalize`]: https://doc.rust-lang.org/std/fs/fn.canonicalize.html
     /// [`DirEntry`]: struct.DirEntry.html
     pub fn canonicalize(mut self) -> Self {
         self.opts.canonicalize = true;

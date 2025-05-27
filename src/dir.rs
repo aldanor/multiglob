@@ -8,7 +8,7 @@ use std::{
 
 // note/credits: most of DirEntryPath-related code is borrowed from walkdir with minor adjustments
 
-/// A directory entry.
+/// A directory entry returned by the glob walker.
 ///
 /// This is the type of value that is yielded from ['MultiGlobWalker'] iterator.
 /// this crate.
