@@ -30,15 +30,6 @@ pub fn windowsify(path: impl AsRef<str>) -> String {
     path
 }
 
-pub fn dewindowsify(path: impl AsRef<str>) -> String {
-    // also works for strings containing paths
-    let mut path = path.as_ref().to_owned();
-    if cfg!(windows) {
-        path = path.replace("C:\\", "/").replace('\\', "/");
-    }
-    path
-}
-
 /// A convenient result type alias.
 pub type Result<T> = result::Result<T, Box<dyn error::Error + Send + Sync>>;
 

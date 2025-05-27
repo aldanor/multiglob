@@ -183,7 +183,7 @@ mod tests {
             if both {
                 let result = split_glob(windowsify(input));
                 let expected = GlobParts {
-                    base: windowsify(&base).into(),
+                    base: windowsify(base).into(),
                     pattern: windowsify(pattern).into(),
                 };
                 assert_eq!(result, expected, "(2): {input:?} != {base:?} + {pattern:?}");
@@ -228,7 +228,7 @@ mod tests {
     fn test_cluster_globs() {
         #[track_caller]
         fn check(input: &[&str], expected: &[(&str, &[&str])]) {
-            let input = input.iter().map(|s| windowsify(s)).collect::<Vec<_>>();
+            let input = input.iter().map(windowsify).collect::<Vec<_>>();
 
             let mut result_sorted = cluster_globs(&input);
             for (_, patterns) in &mut result_sorted {
