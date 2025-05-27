@@ -353,7 +353,7 @@ impl Iterator for NodeWalker {
                     };
                     debug!("walk entry candidate: {walk_entry:?}");
 
-                    if walk_entry.path() != &self.base || *recursive {
+                    if walk_entry.path() != self.base || *recursive {
                         // we check base equality because if we kick off a glob like base/*, base will match *
                         if let Ok(path) = walk_entry.path().strip_prefix(&self.base) {
                             globset.matches_into(path, &mut self.index_buf);
