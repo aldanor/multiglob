@@ -306,3 +306,29 @@ fn test_bigger_walk() {
         ]
     );
 }
+
+#[test]
+fn test_canonicalized() {
+    let dir = Dir::tmp();
+    dir.mkdirp("a/b/c");
+    dir.touch("a/b/c/d");
+    let p = dir.path();
+
+    let patterns = [
+        &p.join("a/b").display().to_string(),
+        &p.join("a/b/c").display().to_string(),
+        "a/*/c",
+        "a/*",
+        "../a/b",
+        "../a/b/c",
+        "../*/b",
+        "a/*/../b/c",
+    ];
+    let res = mg_collect_no_err(p.join("a"), patterns);
+    assert_eq!(
+        res.sorted_paths(),
+        vec![p.join("a/../a/b"), p.join("a/../a/b/c"), p.join("a/b"), p.join("a/b/c"),]
+    );
+    let res = mg_collect_custom(p.join("a"), patterns, |b| b.canonicalize());
+    assert_eq!(res.sorted_paths(), vec![p.join("a/b"), p.join("a/b/c")]);
+}
