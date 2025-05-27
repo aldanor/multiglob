@@ -65,7 +65,7 @@ impl MultiGlobBuilder {
 
     fn impl_build(&self, skip_invalid: bool) -> Result<MultiGlobWalker, GlobError> {
         debug!("-------------");
-        let mut walker = MultiGlobWalker::new(self.opts);
+        let mut walker = MultiGlobWalker::new(self.base.clone(), self.opts);
         let glob_groups = cluster_globs(&self.patterns);
         debug!("glob groups: {glob_groups:?}");
         let mut mg_base = self.base.clone();
@@ -182,10 +182,6 @@ impl MultiGlobBuilder {
     ///
     /// When this option is enabled, directory traversal will not descend into
     /// directories that are on a different file system from the base path.
-    ///
-    /// Currently, this option is only supported on Unix and Windows. If this
-    /// option is used on an unsupported platform, then directory traversal
-    /// will immediately return an error and will not yield any entries.
     pub fn same_file_system(mut self, yes: bool) -> Self {
         self.opts.same_file_system = yes;
         self

@@ -9,7 +9,11 @@ use globset::{Glob, GlobSet, GlobSetBuilder};
 use log::debug;
 use walkdir::WalkDir;
 
-use crate::{builder::MultiGlobOptions, util::is_glob_like, DirEntry, GlobError};
+use crate::{
+    builder::MultiGlobOptions,
+    util::{device_num, is_glob_like},
+    DirEntry, GlobError,
+};
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 enum WalkNodeType {
@@ -235,6 +239,7 @@ struct NodeWalker {
     walkdir_fn: WalkDirFn,
     opts: MultiGlobOptions,
     yield_self: bool,
+    root_device: Option<u64>,
 }
 
 impl NodeWalker {
@@ -244,6 +249,7 @@ impl NodeWalker {
         walkdir_fn: WalkDirFn,
         opts: MultiGlobOptions,
         starting_node: bool,
+        root_device: Option<u64>,
     ) -> Self {
         let state = match node.matcher {
             WalkNodeMatcher::Path { paths } => {
@@ -269,6 +275,7 @@ impl NodeWalker {
             walkdir_fn,
             opts,
             yield_self: starting_node && node.is_terminal,
+            root_device,
         }
     }
 }
@@ -361,12 +368,16 @@ impl Iterator for NodeWalker {
                     out.terminal = entry.take();
                 }
                 if !dst.destinations.is_empty() && is_dir {
+                    if self.root_device.is_some() && device_num(&path).ok() != self.root_device {
+                        continue;
+                    }
                     out.nodes.push(NodeWalker::new(
                         dst.clone(),
                         path.clone(),
                         self.walkdir_fn.clone(),
                         self.opts,
                         false,
+                        self.root_device,
                     ));
                 }
             }
@@ -385,13 +396,15 @@ impl Iterator for NodeWalker {
 ///
 /// [`MultiGlobBuilder`]: struct.MultiGlobBuilder.html
 pub struct MultiGlobWalker {
+    root: PathBuf,
     opts: MultiGlobOptions,
     stack: Vec<NodeWalker>,
+    root_device: Option<Option<u64>>,
 }
 
 impl MultiGlobWalker {
-    pub(crate) fn new(opts: MultiGlobOptions) -> Self {
-        Self { opts, stack: Vec::new() }
+    pub(crate) fn new(root: PathBuf, opts: MultiGlobOptions) -> Self {
+        Self { root, opts, stack: Vec::new(), root_device: None }
     }
 
     pub(crate) fn add(
@@ -405,7 +418,7 @@ impl MultiGlobWalker {
         let node = WalkPlanNodeCompiled::new(&plan, skip_invalid)?;
         let opts = self.opts;
         let walkdir_fn = Arc::new(move |walkdir| opts.configure_walkdir(walkdir));
-        let walker = NodeWalker::new(node, base, walkdir_fn, self.opts, true);
+        let walker = NodeWalker::new(node, base, walkdir_fn, self.opts, true, None);
         self.stack.push(walker);
         Ok(())
     }
@@ -419,6 +432,24 @@ impl Iterator for MultiGlobWalker {
     type Item = io::Result<DirEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.opts.same_file_system {
+            match self.root_device {
+                None => match device_num(&self.root) {
+                    Ok(dn) => {
+                        for walker in &mut self.stack {
+                            walker.root_device = Some(dn);
+                        }
+                        self.root_device = Some(Some(dn))
+                    }
+                    Err(err) => {
+                        self.root_device = Some(None);
+                        return Some(Err(err));
+                    }
+                },
+                Some(None) => return None,
+                _ => (),
+            }
+        }
         while !self.stack.is_empty() {
             match self.stack.last_mut().unwrap().next() {
                 None => _ = self.stack.pop(),
