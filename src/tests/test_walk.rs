@@ -216,3 +216,26 @@ fn test_case_sensitive() {
     let res = mg_collect_custom(p, ["a/{b}/*"], |b| b.case_insensitive(true));
     assert_eq!(res.sorted_paths(), vec![p.join("a/B/d")]);
 }
+
+#[test]
+fn test_symlink_file() {
+    let dir = Dir::tmp();
+    dir.mkdirp("a");
+    dir.touch("a/b");
+    dir.symlink_file("a/b", "a/c");
+    let p = dir.path();
+
+    let res = mg_collect_no_err(p, ["a/*"]);
+    assert_eq!(res.sorted_paths(), vec![p.join("a/b"), p.join("a/c")]);
+    assert!(!res.sorted_ents()[0].path_is_symlink());
+    assert!(res.sorted_ents()[0].file_type().is_file());
+    assert!(res.sorted_ents()[1].path_is_symlink());
+    assert!(!res.sorted_ents()[1].file_type().is_file());
+
+    let res = mg_collect_custom(p, ["a/*"], |b| b.follow_links(true));
+    assert_eq!(res.sorted_paths(), vec![p.join("a/b"), p.join("a/c")]);
+    assert!(!res.sorted_ents()[0].path_is_symlink());
+    assert!(res.sorted_ents()[0].file_type().is_file());
+    assert!(res.sorted_ents()[1].path_is_symlink());
+    assert!(res.sorted_ents()[1].file_type().is_file());
+}
