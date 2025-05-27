@@ -35,10 +35,10 @@ impl WalkPlanNode {
             let mut parts = Vec::new();
             let mut prefix = PathBuf::new();
             if components.len() >= 2
-                && matches!(&components[0], Component::Prefix(_))
-                && matches!(&components[1], Component::RootDir)
+                && matches!(components[0], Component::Prefix(_))
+                && matches!(components[1], Component::RootDir)
             {
-                prefix.push(&components[0]);
+                prefix.push(components[0]);
                 prefix.push(Component::RootDir);
                 parts.push(prefix.as_os_str().to_str().unwrap());
                 components = &components[2..];
@@ -365,7 +365,7 @@ impl Iterator for NodeWalker {
                         dst.clone(),
                         path.clone(),
                         self.walkdir_fn.clone(),
-                        self.opts.clone(),
+                        self.opts,
                         false,
                     ));
                 }
@@ -403,9 +403,9 @@ impl MultiGlobWalker {
         let plan = WalkPlanNode::build(&patterns);
         debug!(plan:?; "walk plan node");
         let node = WalkPlanNodeCompiled::new(&plan, skip_invalid)?;
-        let opts = self.opts.clone();
+        let opts = self.opts;
         let walkdir_fn = Arc::new(move |walkdir| opts.configure_walkdir(walkdir));
-        let walker = NodeWalker::new(node, base, walkdir_fn, self.opts.clone(), true);
+        let walker = NodeWalker::new(node, base, walkdir_fn, self.opts, true);
         self.stack.push(walker);
         Ok(())
     }
