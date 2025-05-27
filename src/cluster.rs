@@ -30,11 +30,6 @@ fn split_glob(pattern: impl AsRef<str>) -> GlobParts {
     let mut globbing = false;
     let mut last = None;
 
-    println!(
-        "split_glob: pattern = {pattern:?}, components = {:#?}",
-        pattern.components().collect::<Vec<_>>()
-    );
-
     for part in pattern.components() {
         if let Some(last) = last {
             if last != Component::CurDir {
@@ -131,21 +126,13 @@ impl<'a> Trie<'a> {
 pub(crate) fn cluster_globs(patterns: &[impl AsRef<str>]) -> Vec<(PathBuf, Vec<String>)> {
     // pub(crate) fn cluster_globs(patterns: &[impl AsRef<str>]) -> Vec<(PathBuf, Vec<String>)> {
     // split all globs into base/pattern
-    println!(
-        "cluster_globs: pre-split globs: {:#?}",
-        patterns.iter().map(|s| s.as_ref()).collect::<Vec<_>>()
-    );
     let globs: Vec<_> = patterns.iter().map(split_glob).collect();
-    println!("cluster_globs: got globs (split): {globs:#?}");
 
     // construct a path trie out of all split globs
     let mut trie = Trie::default();
     for glob in &globs {
-        println!("inserting {glob:?} into the trie...");
         trie.insert(glob.base.components(), &glob.pattern);
-        println!("trie updated: {trie:#?}");
     }
-    println!("final trie: {trie:#?}");
 
     // run LCP-style aggregation of patterns in the trie into groups
     let mut groups = Vec::new();
