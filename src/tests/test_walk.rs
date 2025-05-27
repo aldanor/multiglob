@@ -239,3 +239,25 @@ fn test_symlink_file() {
     assert!(res.sorted_ents()[1].path_is_symlink());
     assert!(res.sorted_ents()[1].file_type().is_file());
 }
+
+#[test]
+fn test_invalid_glob() {
+    let dir = Dir::tmp();
+    dir.mkdirp("a/x");
+    dir.touch("a/x/b");
+    let p = dir.path();
+
+    let b = MultiGlobBuilder::new(p.join("a"), ["x/*", "y/{", "z/["]);
+
+    let err = b.build().err().unwrap();
+    assert_eq!(err.glob().unwrap(), "y/{");
+
+    let (walker, errors) = b.build_skip_invalid();
+    assert_eq!(errors.len(), 2);
+    assert_eq!(errors[0].glob().unwrap(), "y/{");
+    assert_eq!(errors[1].glob().unwrap(), "z/[");
+    assert_eq!(
+        walker.map(|e| e.unwrap().path().to_owned()).collect::<Vec<_>>(),
+        vec![p.join("a/x/b")]
+    );
+}
