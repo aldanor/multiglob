@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use globset::{Glob, GlobSet, GlobSetBuilder};
+use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
 use log::debug;
 use walkdir::WalkDir;
 
@@ -156,7 +156,11 @@ struct WalkPlanNodeCompiled {
 }
 
 impl WalkPlanNodeCompiled {
-    pub fn new(node: &WalkPlanNode, skip_invalid: bool) -> Result<Self, GlobError> {
+    pub fn new(
+        node: &WalkPlanNode,
+        case_insensitive: bool,
+        skip_invalid: bool,
+    ) -> Result<Self, GlobError> {
         // TODO: when skip_invalid is enabled, it could return a list of globs that failed and errors
         let mut destinations = Vec::new();
         let matcher = if node.node_type == WalkNodeType::Path {
@@ -165,7 +169,7 @@ impl WalkPlanNodeCompiled {
         } else {
             let mut globset = GlobSetBuilder::new();
             for (k, v) in &node.patterns {
-                let glob = match Glob::new(k) {
+                let glob = match GlobBuilder::new(k).case_insensitive(case_insensitive).build() {
                     Ok(glob) => glob,
                     Err(_) if skip_invalid => continue,
                     Err(err) => return Err(err),
@@ -184,8 +188,10 @@ impl WalkPlanNodeCompiled {
             let recursive = node.node_type == WalkNodeType::Walk;
             WalkNodeMatcher::Walk { globset, recursive }
         };
-        let destinations =
-            destinations.iter().map(|d| Self::new(d, skip_invalid)).collect::<Result<_, _>>()?;
+        let destinations = destinations
+            .iter()
+            .map(|d| Self::new(d, case_insensitive, skip_invalid))
+            .collect::<Result<_, _>>()?;
         Ok(Self { matcher, is_terminal: node.is_terminal, destinations })
     }
 }
@@ -419,7 +425,7 @@ impl MultiGlobWalker {
     ) -> Result<(), GlobError> {
         let plan = WalkPlanNode::build(&patterns);
         debug!(plan:?; "walk plan node");
-        let node = WalkPlanNodeCompiled::new(&plan, skip_invalid)?;
+        let node = WalkPlanNodeCompiled::new(&plan, self.opts.case_insensitive, skip_invalid)?;
         let opts = self.opts;
         let walkdir_fn = Arc::new(move |walkdir| opts.configure_walkdir(walkdir));
         let walker = NodeWalker::new(node, base, walkdir_fn, self.opts, true, None);
@@ -491,7 +497,7 @@ mod tests {
             "/var/folders/*.doc",
             "/home/user",
         ]);
-        let cnode = WalkPlanNodeCompiled::new(&node, false).unwrap();
+        let cnode = WalkPlanNodeCompiled::new(&node, false, false).unwrap();
         let mut settings = insta::Settings::clone_current();
         settings.set_snapshot_path("tests/snapshots");
         settings.set_snapshot_suffix("node");
@@ -519,7 +525,7 @@ mod tests {
             r"\\unc\share\foo\*\*",
             r"\\unc\share\foo\[ab].txt",
         ]);
-        let cnode = WalkPlanNodeCompiled::new(&node, false).unwrap();
+        let cnode = WalkPlanNodeCompiled::new(&node, false, false).unwrap();
         let mut settings = insta::Settings::clone_current();
         settings.set_snapshot_path("tests/snapshots");
         settings.set_snapshot_suffix("node");

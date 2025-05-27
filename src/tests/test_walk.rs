@@ -199,3 +199,20 @@ fn test_glob_parent_dir() {
     let res = mg_collect_no_err(p.join("a"), ["*", "**"]);
     assert_eq!(res.sorted_paths(), vec![p.join("a"), p.join("a/b"), p.join("a/c")]);
 }
+
+#[test]
+fn test_case_sensitive() {
+    let dir = Dir::tmp();
+    dir.mkdirp("a/B");
+    dir.touch("a/B/d");
+    let p = dir.path();
+
+    let res = mg_collect_custom(p, ["a/**"], |b| b);
+    assert_eq!(res.sorted_paths(), vec![p.join("a"), p.join("a/B"), p.join("a/B/d")]);
+    let res = mg_collect_custom(p, ["a/{b}/*"], |b| b);
+    assert_eq!(res.sorted_paths(), Vec::<PathBuf>::new());
+    let res = mg_collect_custom(p, ["a/{b}/*"], |b| b.case_insensitive(false));
+    assert_eq!(res.sorted_paths(), Vec::<PathBuf>::new());
+    let res = mg_collect_custom(p, ["a/{b}/*"], |b| b.case_insensitive(true));
+    assert_eq!(res.sorted_paths(), vec![p.join("a/B/d")]);
+}
