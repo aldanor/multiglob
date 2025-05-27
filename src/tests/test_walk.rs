@@ -262,3 +262,47 @@ fn test_invalid_glob() {
         vec![p.join("a/x/b")]
     );
 }
+
+#[test]
+fn test_bigger_walk() {
+    let dir = Dir::tmp();
+    dir.mkdirp("a/b/c");
+    dir.touch("a/b/c/x.doc");
+    dir.touch("a/b/c/y.doc");
+    dir.touch("a/b/c/z1.txt");
+    dir.touch("a/b/c/z2.txt");
+    dir.touch("a/b/c/z3.txt");
+    dir.mkdirp("x/y/b/c/d");
+    dir.touch("x/y/b/c/d/a1.doc");
+    dir.touch("x/y/b/c/d/a2.doc");
+    dir.touch("x/y/b/c/d/a3.doc");
+    let p = dir.path();
+
+    let res = mg_collect_no_err(
+        p.join("a"),
+        [
+            ".",
+            "..",
+            "../x/**/*[13].d*",
+            "../**/*/c",
+            "b/*",
+            &p.join("a/b/*/z{1,3}.*").display().to_string(),
+            "b/c/../*/y*",
+        ],
+    );
+    assert_eq!(
+        res.sorted_paths(),
+        vec![
+            p.join("a"),
+            p.join("a/.."),
+            p.join("a/../a/b/c"),
+            p.join("a/../x/y/b/c"),
+            p.join("a/../x/y/b/c/d/a1.doc"),
+            p.join("a/../x/y/b/c/d/a3.doc"),
+            p.join("a/b/c"), // NOTE: it's the same path as before but we can't tell that unless we query metadata
+            p.join("a/b/c/../c/y.doc"),
+            p.join("a/b/c/z1.txt"),
+            p.join("a/b/c/z3.txt"),
+        ]
+    );
+}
