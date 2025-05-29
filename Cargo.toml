@@ -16,15 +16,11 @@ rust-version = "1.81"
 [dependencies]
 globset = "0.4.1"
 walkdir = "2.4"
-# debugging
-log = { version = "0.4", features = ["kv"] }
-env_logger = { version = "0.11", features = ["kv"] }
 
 [target.'cfg(windows)'.dependencies.winapi-util]
 version = "0.1"
 
 [dev-dependencies]
-ctor = "0.4"
 current_dir = "0.1"
 insta = "1.43"
 pretty_assertions = "1.4"

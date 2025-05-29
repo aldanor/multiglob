@@ -6,7 +6,6 @@ use std::{
 };
 
 use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
-use log::debug;
 use walkdir::WalkDir;
 
 use crate::{
@@ -61,7 +60,6 @@ impl WalkPlanNode {
     }
 
     pub fn insert(&mut self, parts: &[&str]) {
-        debug!("WalkPlanNode::insert({parts:?})");
         let Some((&part, tail)) = parts.split_first() else {
             self.is_terminal = true;
             return;
@@ -254,13 +252,11 @@ impl NodeWalker {
     ) -> Self {
         let state = match node.matcher {
             WalkNodeMatcher::Path { paths } => {
-                debug!("creating new path node at {} with paths {paths:?}", base.display());
                 let paths = paths.iter().map(|p| base.join(p)).collect();
                 NodeWalkerState::Path { paths, index: 0 }
             }
             WalkNodeMatcher::Walk { globset, recursive } => {
                 let max_depth = if recursive { opts.max_depth } else { 1 };
-                debug!("creating new walker at {}, recursive={recursive}", base.display());
                 let walker = walkdir_fn(WalkDir::new(&base))
                     .max_depth(max_depth)
                     .follow_root_links(starting_node)
@@ -292,9 +288,7 @@ impl Iterator for NodeWalker {
             match &mut self.state {
                 _ if self.yield_self => {
                     self.yield_self = false;
-                    debug!("yield self: {}", self.base.display());
                     let Ok(meta) = fs::metadata(&self.base) else {
-                        debug!("fs::metadata error for root {}, skip", self.base.display());
                         continue;
                     };
                     let Ok(follow) = fs::symlink_metadata(&self.base).map(|m| m.is_symlink())
@@ -315,7 +309,6 @@ impl Iterator for NodeWalker {
                     *index += 1;
                     let path = paths[i].clone();
                     let Ok(mut meta) = fs::symlink_metadata(&path) else {
-                        debug!("fs::symlink_metadata error for {}, skip", path.display());
                         continue;
                     };
                     let follow = meta.is_symlink() && self.opts.follow_links;
@@ -323,7 +316,6 @@ impl Iterator for NodeWalker {
                         if let Ok(m) = fs::metadata(&path) {
                             meta = m;
                         } else {
-                            debug!("fs::metadata error for {}, skip", path.display());
                             continue;
                         }
                     }
@@ -331,22 +323,17 @@ impl Iterator for NodeWalker {
                     self.index_buf.push(i);
                 }
                 NodeWalkerState::Walk { walker, globset, base_checked, recursive } => {
-                    debug!("base_checked={base_checked}");
                     if !*base_checked {
                         // if we don't do this before kicking off walkdir iteration, it will yield an error
-                        debug!("base not checked... checking {:?}", self.base);
                         if !self.base.try_exists().unwrap_or(false) {
-                            debug!("not going to walk {:?}, doesn't exist", self.base);
                             return None;
                         }
                         *base_checked = true;
                     }
-                    debug!("trying to walk...");
                     let walk_entry = match walker.next()? {
                         Ok(v) => v,
                         Err(err) => return Some(Err(err.into())),
                     };
-                    debug!("walk entry candidate: {walk_entry:?}");
 
                     if walk_entry.path() != self.base || *recursive {
                         // we check base equality because if we kick off a glob like base/*, base will match *
@@ -386,7 +373,6 @@ impl Iterator for NodeWalker {
                     ));
                 }
             }
-            debug!("out.terminal={:?}", out.terminal);
             if out.terminal.is_some() || !out.nodes.is_empty() {
                 return Some(Ok(out));
             }
@@ -420,7 +406,6 @@ impl MultiGlobWalker {
         errors: &mut Vec<GlobError>,
     ) {
         let plan = WalkPlanNode::build(&patterns);
-        debug!(plan:?; "walk plan node");
         let node = WalkPlanNodeCompiled::new(&plan, self.opts.case_insensitive, errors);
         let opts = self.opts;
         let walkdir_fn = Arc::new(move |walkdir| opts.configure_walkdir(walkdir));

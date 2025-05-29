@@ -9,11 +9,6 @@ use crate::{DirEntry, MultiGlobBuilder, MultiGlobWalker};
 
 use super::util::{Dir, RecursiveResults, Result};
 
-#[ctor::ctor]
-fn init() {
-    env_logger::init();
-}
-
 #[track_caller]
 fn assert_ent_eq(a: &DirEntry, b: &DirEntry) {
     let cmp = |d: &DirEntry| {

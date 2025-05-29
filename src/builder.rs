@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 
 use globset::Glob;
-use log::debug;
 use walkdir::WalkDir;
 
 use crate::{cluster::cluster_globs, walk::MultiGlobWalker, GlobError};
@@ -81,7 +80,6 @@ impl MultiGlobBuilder {
     /// Returns list of all glob errors encountered as the second element of the tuple.
     /// Note: invalid glob patterns reported in errors will not be the original patterns
     pub fn build_skip_invalid(&self) -> (MultiGlobWalker, Vec<GlobError>) {
-        debug!("-------------");
         let mut patterns = self.patterns.clone();
         let mut errors = Vec::new();
         patterns.retain(|p| {
@@ -95,7 +93,6 @@ impl MultiGlobBuilder {
         });
         let mut walker = MultiGlobWalker::new(self.base.clone(), self.opts);
         let glob_groups = cluster_globs(&patterns);
-        debug!("glob groups: {glob_groups:?}");
         let mut mg_base = self.base.clone();
         if mg_base == PathBuf::new() {
             mg_base = ".".into();
@@ -105,7 +102,6 @@ impl MultiGlobBuilder {
             if base == mg_base {
                 base = mg_base.clone();
             }
-            debug!("add: base={base:?} self.base={:?} patterns={patterns:?}", self.base);
             walker.add(base, patterns, &mut errors);
         }
         (walker.rev(), errors)
