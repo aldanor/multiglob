@@ -74,48 +74,116 @@ impl<'a> Trie<'a> {
         }
     }
 
-    #[allow(clippy::needless_pass_by_value)]
-    fn collect_patterns(
-        &self,
-        pattern_prefix: PathBuf,
-        group_prefix: PathBuf,
-        patterns: &mut Vec<PathBuf>,
-        groups: &mut Vec<(PathBuf, Vec<PathBuf>)>,
-    ) {
-        // collect all patterns beneath and including this node
-        for pattern in &self.patterns {
-            patterns.push(pattern_prefix.join(pattern));
+    /// Iteratively collects groups of patterns from the Trie (no recursion).
+    pub fn collect_groups(&self) -> Vec<(PathBuf, Vec<PathBuf>)> {
+        /// Defines the current processing mode for a node on the stack.
+        enum ModeState {
+            /// Evaluate if the current node should start a new group or delegate to children.
+            CollectGroups,
+            /// Collect patterns for the group currently at the top of `active_group_stack`.
+            /// The path accumulates the relative path for patterns within the current group.
+            CollectPatterns(PathBuf),
+            /// Finalize the group at the top of `active_group_stack` and add it to `out_groups`.
+            FinalizeGroup,
         }
-        for (part, child) in &self.children {
-            if let Component::Normal(_) = part {
-                // for normal components, collect all descendant patterns ('normal' edges only)
-                child.collect_patterns(
-                    pattern_prefix.join(part),
-                    group_prefix.join(part),
-                    patterns,
-                    groups,
-                );
-            } else {
-                // for non-normal component edges, kick off separate group collection at this node
-                child.collect_groups(group_prefix.join(part), groups);
-            }
-        }
-    }
 
-    #[allow(clippy::needless_pass_by_value)]
-    fn collect_groups(&self, prefix: PathBuf, groups: &mut Vec<(PathBuf, Vec<PathBuf>)>) {
-        // LCP-style grouping of patterns
-        if self.patterns.is_empty() {
-            // no patterns in this node; child nodes can form independent groups
-            for (part, child) in &self.children {
-                child.collect_groups(prefix.join(part), groups);
+        // The main stack for iterative traversal. Each item includes:
+        // - A reference to the Trie node to process.
+        // - The current path context:
+        //   - `CollectGroups` => the prefix that will become the group key if this node is a pivot.
+        //   - `CollectPatterns` => the base path for forming new subgroup keys if a non-normal child is found.
+        //   - `FinalizeGroup` => this path context is the key of the group being finalized.
+        // - The `ModeState` indicating what action to perform.
+        let mut stack = vec![(self, PathBuf::new(), ModeState::CollectGroups)];
+
+        // The final list of (group_key, patterns_list) tuples that will be returned.
+        let mut out_groups: Vec<(PathBuf, Vec<PathBuf>)> = Vec::new();
+
+        // A stack to manage groups that are currently being built.
+        // When a pivot node is found (in `CollectGroups`), a new group (group_key, empty_pattern_list)
+        // is pushed here. `CollectPatterns` adds patterns to the group at the top of this stack.
+        // `FinalizeGroup` moves the top group from this stack to `out_groups`.
+        let mut active_group_stack: Vec<(PathBuf, Vec<PathBuf>)> = Vec::new();
+
+        while let Some((node, path_context, mode)) = stack.pop() {
+            match mode {
+                ModeState::CollectGroups => {
+                    if node.patterns.is_empty() {
+                        // This node is not a pivot (no patterns directly in it).
+                        // Child nodes might form their own independent groups.
+                        // Push children to the stack to be processed for grouping.
+                        // Iterate children in reverse order because the stack is LIFO,
+                        // ensuring they are processed in their natural BTreeMap order.
+                        for (part, child_node) in node.children.iter().rev() {
+                            stack.push((
+                                child_node,
+                                path_context.join(part),
+                                ModeState::CollectGroups,
+                            ));
+                        }
+                    } else {
+                        // This node is a pivot point because it contains patterns.
+                        // A new group must be formed here with `path_context` as its key.
+
+                        // Add a new group (with an empty pattern list for now) to the active_group_stack.
+                        active_group_stack.push((path_context.clone(), Vec::new()));
+
+                        // Schedule the finalization of this new group. This will happen after
+                        // all its patterns (and patterns from normal descendants) are collected.
+                        stack.push((
+                            node, // node itself doesn't matter here
+                            path_context.clone(),
+                            ModeState::FinalizeGroup,
+                        ));
+
+                        // Schedule the collection of patterns for this new group.
+                        stack.push((
+                            node,
+                            path_context,
+                            ModeState::CollectPatterns(PathBuf::new()),
+                        ));
+                    }
+                }
+
+                ModeState::CollectPatterns(pattern_prefix) => {
+                    // This state assumes a group is active on `active_group_stack`.
+                    let active_group = active_group_stack.last_mut().unwrap();
+
+                    // Add all patterns from `node` to this active group. Each pattern is prefixed with the
+                    // pattern prefix which represents the path from the group's pivot node down to `node`
+                    // via normal components.
+                    for pattern in &node.patterns {
+                        active_group.1.push(pattern_prefix.join(pattern));
+                    }
+
+                    // Process children of `node`.
+                    for (part, child_node) in node.children.iter().rev() {
+                        let child_path_context = path_context.join(part);
+                        if let Component::Normal(_) = part {
+                            // If the child is connected by a "Normal" component, continue collecting
+                            // patterns for the *current* active group; extend pattern prefix and path context.
+                            stack.push((
+                                child_node,
+                                child_path_context,
+                                ModeState::CollectPatterns(pattern_prefix.join(part)),
+                            ));
+                        } else {
+                            // If the child is connected by a non-Normal component, it signifies the start
+                            // of a *new*, independent group collection. Push a separate task for this node.
+                            stack.push((child_node, child_path_context, ModeState::CollectGroups));
+                        }
+                    }
+                }
+
+                ModeState::FinalizeGroup => {
+                    // The group at the top of `active_group_stack` has had all its patterns collected.
+                    // Move it to the `out_groups`.
+                    out_groups.push(active_group_stack.pop().unwrap());
+                }
             }
-        } else {
-            // pivot point, we've hit a pattern node; we have to stop here and form a group
-            let mut group = Vec::new();
-            self.collect_patterns(PathBuf::new(), prefix.clone(), &mut group, groups);
-            groups.push((prefix, group));
         }
+
+        out_groups
     }
 }
 
@@ -135,8 +203,7 @@ pub(crate) fn cluster_globs(patterns: &[impl AsRef<str>]) -> Vec<(PathBuf, Vec<S
     }
 
     // run LCP-style aggregation of patterns in the trie into groups
-    let mut groups = Vec::new();
-    trie.collect_groups(PathBuf::new(), &mut groups);
+    let groups = trie.collect_groups();
 
     // finally, convert resulting patterns to strings
     groups
