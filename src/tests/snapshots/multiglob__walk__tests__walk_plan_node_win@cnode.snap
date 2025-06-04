@@ -1,0 +1,150 @@
+---
+source: src/walk.rs
+expression: "&format!(\"{cnode:#?}\")"
+---
+Path {
+    paths: [
+        "..",
+        "C:\\",
+        "\\",
+        "\\\\unc\\share\\",
+        "foo",
+        "x",
+    ],
+    destinations: [
+        Path {
+            paths: [
+                "..",
+                "x",
+            ],
+            destinations: [
+                Path {
+                    paths: [
+                        "a",
+                    ],
+                    destinations: [
+                        Terminal,
+                    ],
+                },
+                Glob {
+                    globset: "..",
+                    recursive: true,
+                    destinations: [
+                        Terminal,
+                        Terminal,
+                        Terminal,
+                        Terminal,
+                    ],
+                },
+            ],
+        },
+        Path {
+            paths: [
+                "var",
+            ],
+            destinations: [
+                Path {
+                    paths: [
+                        "folders",
+                    ],
+                    destinations: [
+                        Glob {
+                            globset: "..",
+                            recursive: false,
+                            destinations: [
+                                Terminal,
+                                Glob {
+                                    globset: "..",
+                                    recursive: false,
+                                    destinations: [
+                                        Terminal,
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+        Path {
+            paths: [
+                "var",
+            ],
+            destinations: [
+                Path {
+                    paths: [
+                        "folders",
+                    ],
+                    destinations: [
+                        Path[T] {
+                            paths: [
+                                "1",
+                            ],
+                            destinations: [
+                                Path {
+                                    paths: [
+                                        "2",
+                                    ],
+                                    destinations: [
+                                        Terminal,
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+        Path {
+            paths: [
+                "foo",
+            ],
+            destinations: [
+                Glob {
+                    globset: "..",
+                    recursive: false,
+                    destinations: [
+                        Glob {
+                            globset: "..",
+                            recursive: false,
+                            destinations: [
+                                Terminal,
+                            ],
+                        },
+                        Terminal,
+                    ],
+                },
+            ],
+        },
+        Path {
+            paths: [
+                "bar",
+            ],
+            destinations: [
+                Path[T] {
+                    paths: [
+                        "..",
+                    ],
+                    destinations: [
+                        Path {
+                            paths: [
+                                "z",
+                            ],
+                            destinations: [
+                                Terminal,
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+        Path {
+            paths: [
+                "y",
+            ],
+            destinations: [
+                Terminal,
+            ],
+        },
+    ],
+}

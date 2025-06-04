@@ -1,0 +1,54 @@
+---
+source: src/walk.rs
+expression: "&format!(\"{node:#?}\")"
+---
+Path {
+    ..: Path {
+        ..: Path {
+            a: Terminal,
+        },
+        x: Walk {
+            **: Terminal,
+            **\y: Terminal,
+            **\z\*: Terminal,
+            y: Terminal,
+        },
+    },
+    C:\: Path {
+        var: Path {
+            folders: Glob {
+                *.doc: Terminal,
+                secret: Glob {
+                    *.txt: Terminal,
+                },
+            },
+        },
+    },
+    \: Path {
+        var: Path {
+            folders: Path[T] {
+                1: Path {
+                    2: Terminal,
+                },
+            },
+        },
+    },
+    \\unc\share\: Path {
+        foo: Glob {
+            *: Glob {
+                *: Terminal,
+            },
+            [ab].txt: Terminal,
+        },
+    },
+    foo: Path {
+        bar: Path[T] {
+            ..: Path {
+                z: Terminal,
+            },
+        },
+    },
+    x: Path {
+        y: Terminal,
+    },
+}
